@@ -32,6 +32,10 @@ $ pipenv install
     * Start a manager node: `$ pipenv run manager.py -p 5000`, where -p is the port, default IP is 0.0.0.0
     * To start a slave node you have to send a HTTP/GET request to the manager node's endpoint, e.g. "http://0.0.0.0:5000/cluster/add_miner". We would recommend the application PostMan for sending requests. You can also use a browser.
 
+6. Log data to .VST file
+   * Start logging app: `$ pipenv run logging.py
+   * It will save the network data to a .VST file (compatible with Excel) in a folder called "tmp". It will be created if not already existing.
+
 ## TODO
 
 * Syncing of transactions between clusters
