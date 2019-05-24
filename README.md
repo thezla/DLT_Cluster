@@ -8,7 +8,7 @@ The goal of this project is to study how clustering of DLT nodes affects scalabi
 * The manager nodes form a network with each other and keep their chains and transaction pool synced.
 * The manager nodes compete to mine blocks, but the miner nodes in each cluster work together to find the proof.
 
-Forked from [Building a Blockchain](https://github.com/dvf/blockchain). 
+Based on [Building a Blockchain](https://github.com/dvf/blockchain). 
 
 ## Installation
 
@@ -24,13 +24,17 @@ $ pipenv install
 ``` 
 
 4. Run a simple blockchain:
-    * `$ pipenv run python blockchain.py` 
-    * `$ pipenv run python blockchain.py -p 5001`, where -p is the port, default IP is 0.0.0.0
-    * `$ pipenv run python blockchain.py --port 5002`
+    * `$ pipenv run python3 blockchain.py` 
+    * `$ pipenv run python3 blockchain.py -p 5001`, where -p is the port, default IP is 0.0.0.0
+    * `$ pipenv run python3 blockchain.py --port 5002`
 
 5. Run a cluster of miners:
-    * Start a manager node: `$ pipenv run manager.py -p 5000`, where -p is the port, default IP is 0.0.0.0
+    * Start a manager node: `$ pipenv run python3 manager.py -p 5000`, where -p is the port, default IP is 0.0.0.0
     * To start a slave node you have to send a HTTP/GET request to the manager node's endpoint, e.g. "http://0.0.0.0:5000/cluster/add_miner". We would recommend the application PostMan for sending requests. You can also use a browser.
+
+6. Log data to .VST file
+   * Start logging app: `$ pipenv run python3 logging.py`
+   * It will save the network data to a .VST file (compatible with Excel) in a folder called "tmp". It will be created if not already existing.
 
 ## TODO
 
