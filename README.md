@@ -8,7 +8,7 @@ The goal of this project is to study how clustering of DLT nodes affects scalabi
 * The manager nodes form a network with each other and keep their chains and transaction pool synced.
 * The manager nodes compete to mine blocks, but the miner nodes in each cluster work together to find the proof.
 
-Forked from [Building a Blockchain](https://medium.com/p/117428612f46). 
+Forked from [Building a Blockchain](https://github.com/dvf/blockchain). 
 
 ## Installation
 
@@ -33,7 +33,14 @@ $ pipenv install
     * To start a slave node you have to send a HTTP/GET request to the manager node's endpoint, e.g. "http://0.0.0.0:5000/cluster/add_miner". We would recommend the application PostMan for sending requests. You can also use a browser.
 
 ## TODO
-* Make miner nodes cooperate to find proof.
-~~* Make it so the transactions are not removed from the pool while composed into blocks. Only when a block has been mined.~~
-~~* Change the transaction pool from a list to a dictionary to allow faster lookups and deletions.~~
+
+* Syncing of transactions between clusters
+
 * Make the program exit cleaner when CTRL-C is pressed.
+
+~~* Make miner nodes cooperate to find proof.~~
+
+~~* Make it so the transactions are not removed from the pool while composed into blocks. Only when a block has been mined.~~
+
+~~* Change the transaction pool from a list to a dictionary to allow faster lookups and deletions.~~
+
