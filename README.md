@@ -8,7 +8,7 @@ The goal of this project is to study how clustering of DLT nodes affects scalabi
 * The manager nodes form a network with each other and keep their chains and transaction pool synced.
 * The manager nodes compete to mine blocks, but the miner nodes in each cluster work together to find the proof.
 
-Forked from [Building a Blockchain](https://github.com/dvf/blockchain). 
+Based on [Building a Blockchain](https://github.com/dvf/blockchain). 
 
 ## Installation
 
