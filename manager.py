@@ -160,7 +160,7 @@ class Blockchain:
             else:
                 block_transactions.append(transaction)
                 block_size += transaction_size
-        return []
+        return block_transactions
 
     def add_block(self, block):
         """
@@ -315,6 +315,9 @@ class Manage(Thread):
                 if not waiting_for_response and not block_found:
                     
                     transactions = manager.compose_block_transactions()
+                    if not transactions:
+                        sleep(0.1)
+                        continue
                     last_block = manager.last_block()
                     interval = len(manager.slave_nodes)
                     start_value = 0
