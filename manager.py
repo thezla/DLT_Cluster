@@ -66,23 +66,6 @@ class Blockchain:
                     requests.post(url=f'http://{node}/nodes/register', json=payload, headers=headers)
 
 
-    @staticmethod
-    def valid_proof(last_proof, proof, last_hash):
-        """
-        Validates the Proof
-
-        :param last_proof: <int> Previous Proof
-        :param proof: <int> Current Proof
-        :param last_hash: <str> The hash of the Previous Block
-        :return: <bool> True if correct, False if not.
-        """
-
-        guess = f'{last_proof}{proof}{last_hash}'.encode()
-        guess_hash = hashlib.sha256(guess).hexdigest()
-        #return guess_hash[:2] == "00"
-        return True           # Hash made easy to simulate mining
-    
-
     def valid_chain(self, chain):
         """
         Determine if a given manager is valid
@@ -158,7 +141,8 @@ class Blockchain:
             if (transaction_size + block_size) > max_size:
                 return block_transactions
             else:
-                block_transactions.append(transaction)
+                if transaction:
+                    block_transactions.append(transaction)
                 block_size += transaction_size
         return block_transactions
 
@@ -249,17 +233,22 @@ class Blockchain:
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
 
-    def start_mining(self):
+    '''def start_mining(self):
         payload = {
             'transactions': self.compose_block_transactions(),
             'last_block': self.last_block()
         }
         for node in self.slave_nodes:
-            requests.post(url='http://'+node+'/start', json=payload)
+            requests.post(url='http://'+node+'/start', json=payload)'''
     
     def set_address(self, address):
         parsed_url = urlparse(address)
-        self.address = parsed_url.netloc
+        
+        if parsed_url.netloc:
+            self.address = parsed_url.netloc
+        elif parsed_url.path:
+            # Accepts an URL without scheme like '192.168.0.5:5000'.
+            self.address = parsed_url.path
     
     def set_cluster_start_port(self, n):
         self.cluster_start_port = n
@@ -351,6 +340,7 @@ class NewMiner(Thread):
         port = manager.get_cluster_start_port()+len(manager.slave_nodes)
         address = f'0.0.0.0:{port}'
         manager.slave_nodes.add(address)
+        #man_address = manager.address
 
         import sys
         import importlib.util
@@ -499,7 +489,7 @@ def get_cluster():
 @app.route('/cluster/add_miner', methods=['GET'])
 def add_miner():
     async_task = NewMiner(task_id=3)
-    async_task.setName(f'New Miner: 0.0.0.0:{6000+len(manager.slave_nodes)}')
+    async_task.setName(f'New Miner: 0.0.0.0:{manager.get_cluster_start_port()}')
     try:
         with app.test_request_context():
             async_task.start()
@@ -514,7 +504,7 @@ def add_miner():
 @app.route('/cluster/start', methods=['GET'])
 def start_cluster():
     global cluster_running
-    global block_found
+    #global block_found
 
     if not cluster_running:
         if manager.slave_nodes:
@@ -553,11 +543,11 @@ def generate_transactions():
     return f'{number} transactions generated!'
 
 
-    @app.route('/transactions/update', methods=['POST'])
-    def update_transactions(self):
-        new_transactions = request.get_json()
-        self.current_transactions = new_transactions
-        return 'Transactions updated!', 200
+@app.route('/transactions/update', methods=['POST'])
+def update_transactions(self):
+    new_transactions = request.get_json()
+    self.current_transactions = new_transactions
+    return 'Transactions updated!', 200
 
 
 @app.route('/address', methods=['GET'])
@@ -568,7 +558,7 @@ def get_address():
 # Initialization --------------------
 # Activate syncing of manager node list
 sync_nodes()
-
+manager.set_cluster_start_port(6000+(len(manager.nodes)*100))
 # Get longest blockchain
 #manager.resolve_conflicts()
 
@@ -589,7 +579,7 @@ def main():
 
     # Add own address to node list
     address = f'http://0.0.0.0:{port}'
-    manager.set_address(address) 
+    manager.set_address(address)
     manager.register_node(address)
 
     # Prevent address collisions when using the local network, change this in bigger networks

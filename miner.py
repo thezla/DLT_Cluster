@@ -95,7 +95,7 @@ class Miner:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:5] == "00000"         # Hash made easy to simulate mining
+        return guess_hash[:2] == "00"         # Hash made easy to simulate mining
     
     def set_address(self, address):
         self.node_address = address
@@ -206,7 +206,7 @@ def get_transactions():
 
 @app.route('/mining', methods=['GET'])
 def mining():
-    return miner.is_mining, 200
+    return str(miner.is_mining), 200
 
 '''
 @app.route('/set_manager_address', methods=['POST'])
