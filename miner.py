@@ -95,7 +95,7 @@ class Miner:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:2] == "00"         # Hash made easy to simulate mining
+        return guess_hash[:4] == "0000"         # Hash made easy to simulate mining
     
     def set_address(self, address):
         self.node_address = address
@@ -145,7 +145,7 @@ class Mine(Thread):
                     }
                     r = requests.post(url=f'http://{miner.manager_node}/slave/done', json=block)
                     if r.status_code == requests.codes.ok:
-                        requests.post(url=f'http://{miner.manager_node}/transactions/new', json=payload)   # Reward miner for block
+                        #requests.post(url=f'http://{miner.manager_node}/transactions/new', json=payload)   # Reward miner for block
                         self.completed = True
 
         miner.current_transactions = []

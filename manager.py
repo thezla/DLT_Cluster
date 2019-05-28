@@ -64,7 +64,8 @@ class Blockchain:
                 # Do not request node list from itself
                 if node != self.address:
                     requests.post(url=f'http://{node}/nodes/register', json=payload, headers=headers)
-
+        elif len(neighbors) == 1:
+            self.address = list(neighbors)[0]
 
     def valid_chain(self, chain):
         """
@@ -143,7 +144,7 @@ class Blockchain:
             else:
                 if transaction:
                     block_transactions.append(transaction)
-                block_size += transaction_size
+                    block_size += transaction_size
         return block_transactions
 
     def add_block(self, block):
@@ -421,7 +422,7 @@ def slave_done():
         block = request.get_json()
         manager.add_block(block)
         manager.stop_all_clusters()
-        manager.sync_transactions()
+        #manager.sync_transactions()
         start_cluster()
         manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
@@ -497,7 +498,6 @@ def add_miner():
         return 'Could not create a new miner', 400
 
     return 'Miner node created and added to cluster!', 200
-
 
 
 # Tells cluster to start mining
