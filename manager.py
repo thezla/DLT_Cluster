@@ -215,8 +215,9 @@ class Blockchain:
     def sync_transactions(self):
         if len(self.nodes) > 1:
             for node in self.nodes:
-                requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
-
+                if node is not self.address:
+                    return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
+                
 
     #@property
     def last_block(self):
@@ -262,13 +263,14 @@ class Blockchain:
             for node in self.nodes:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/stop')
-
+            return 'Clusters stopped', 200
     
     def start_all_clusters(self):
         if len(self.nodes) > 1:
             for node in self.nodes:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/start')
+            return 'Clusters started', 200
 
 
 # Instantiate the Node
@@ -310,7 +312,7 @@ class Manage(Thread):
                         continue
                     last_block = manager.last_block()
                     interval = len(manager.slave_nodes)
-                    start_value = 0
+                    start_value = random.randint(1, 100000)
 
                     for node in manager.slave_nodes:
                         payload = {
@@ -421,8 +423,9 @@ def slave_done():
         block_found = True
         block = request.get_json()
         manager.add_block(block)
+        #if manager.stop_all_clusters()[1] == 200:
         manager.stop_all_clusters()
-        #manager.sync_transactions()
+        manager.sync_transactions()
         start_cluster()
         manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
@@ -544,9 +547,9 @@ def generate_transactions():
 
 
 @app.route('/transactions/update', methods=['POST'])
-def update_transactions(self):
+def update_transactions():
     new_transactions = request.get_json()
-    self.current_transactions = new_transactions
+    manager.current_transactions = new_transactions
     return 'Transactions updated!', 200
 
 

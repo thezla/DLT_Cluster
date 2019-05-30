@@ -95,7 +95,7 @@ class Miner:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:4] == "0000"         # Hash made easy to simulate mining
+        return guess_hash[:5] == "00000"         # Hash made easy to simulate mining
     
     def set_address(self, address):
         self.node_address = address
