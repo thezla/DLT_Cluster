@@ -155,8 +155,8 @@ class Blockchain:
         :return: Block that was added
         """
         # Ensure we are the longest chain
-        self.resolve_conflicts()
         self.chain.append(block)
+        self.resolve_conflicts()
         manager.generate_log(f'Block added to chain by: {self.address}')
         for transaction in block['transactions']:
             if transaction['id'] in self.current_transactions:
