@@ -157,6 +157,7 @@ class Blockchain:
         # Ensure we are the longest chain
         self.resolve_conflicts()
         self.chain.append(block)
+        manager.generate_log(f'Block added to chain by: {self.address}')
         for transaction in block['transactions']:
             if transaction['id'] in self.current_transactions:
                 self.current_transactions.pop(transaction['id'])
@@ -251,12 +252,10 @@ class Blockchain:
         elif parsed_url.path:
             # Accepts an URL without scheme like '192.168.0.5:5000'.
             self.address = parsed_url.path
-    
-    def set_cluster_start_port(self, n):
-        self.cluster_start_port = n
 
+    # Gets next available port for slave node
     def get_cluster_start_port(self):
-        return self.cluster_start_port
+        return int(self.address.split(":")[-1])+len(manager.slave_nodes)+1
     
     def stop_all_clusters(self):
         if len(self.nodes) > 1:
@@ -271,6 +270,16 @@ class Blockchain:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/start')
             return 'Clusters started', 200
+    
+    def generate_log(self, event):
+        payload = {
+            'miner_id': 'None',
+            'manager_id': self.address,
+            'event': event,
+            'time': str(datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://0.0.0.0:3000/report', json=payload)
 
 
 # Instantiate the Node
@@ -313,7 +322,7 @@ class Manage(Thread):
                     last_block = manager.last_block()
                     interval = len(manager.slave_nodes)
                     start_value = random.randint(1, 100000)
-
+                    manager.generate_log('Start cluster')   # Logging
                     for node in manager.slave_nodes:
                         payload = {
                             'transactions': transactions,
@@ -321,7 +330,6 @@ class Manage(Thread):
                             'interval': interval,
                             'start_value': start_value
                         }
-
                         requests.post(url='http://'+node+'/start', json=payload)
                         start_value+=1
                     waiting_for_response = True
@@ -339,8 +347,7 @@ class NewMiner(Thread):
         self.task_id = task_id
     
     def run(self):
-        #port = 6000+len(manager.slave_nodes)+len(manager.nodes)*100
-        port = manager.get_cluster_start_port()+len(manager.slave_nodes)
+        port = manager.get_cluster_start_port()
         address = f'0.0.0.0:{port}'
         manager.slave_nodes.add(address)
         #man_address = manager.address
@@ -353,7 +360,7 @@ class NewMiner(Thread):
         new_miner = importlib.util.module_from_spec(SPEC_OS)
         SPEC_OS.loader.exec_module(new_miner)
         sys.modules[f'miner_{address}'] = new_miner
-
+        manager.generate_log(f'Add miner {address}:{port} to cluster')
         new_miner.start(address='http://0.0.0.0', port=port, manager_address=manager.address)
 
 
@@ -366,7 +373,7 @@ class Sync(Thread):
         while True:
             if is_syncing:
                 manager.resolve_nodes(manager.address)
-                sleep(5)
+                sleep(1)
 
 
 @app.route('/sync', methods=['GET'])
@@ -419,12 +426,13 @@ def get_transactions():
 def slave_done():
     global block_found
     if not block_found:     # Ignore all requests except first one
-        stop_cluster()
         block_found = True
+        manager.generate_log('Slave done & block not found')
+        stop_cluster()
+        manager.stop_all_clusters()
         block = request.get_json()
         manager.add_block(block)
         #if manager.stop_all_clusters()[1] == 200:
-        manager.stop_all_clusters()
         manager.sync_transactions()
         start_cluster()
         manager.start_all_clusters()
@@ -512,9 +520,12 @@ def start_cluster():
     if not cluster_running:
         if manager.slave_nodes:
             cluster_running = True
+            manager.generate_log('Cluster mining initiated')
             return 'Cluster mining initiated!', 200
         return 'Error: No nodes in cluster', 400
+        manager.generate_log('Error: No nodes in cluster')
     return 'Error: Cluster is already running', 400
+    manager.generate_log('Error: Cluster is already running')
 
 
 # Tells cluster to stop mining
@@ -561,7 +572,8 @@ def get_address():
 # Initialization --------------------
 # Activate syncing of manager node list
 sync_nodes()
-manager.set_cluster_start_port(6000+(len(manager.nodes)*100))
+manager.generate_log('Manager created')
+
 # Get longest blockchain
 #manager.resolve_conflicts()
 
@@ -586,7 +598,6 @@ def main():
     manager.register_node(address)
 
     # Prevent address collisions when using the local network, change this in bigger networks
-    manager.set_cluster_start_port(6000+(len(manager.nodes)*100))
 
     # Start Flask app
     app.run(host='0.0.0.0', port=port, threaded=False)

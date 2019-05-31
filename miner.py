@@ -105,7 +105,16 @@ class Miner:
     
     def get_node_id(self):
         return self.node_identifier
-
+    
+    def generate_log(self, event):
+        payload = {
+            'miner_id': self.node_address,
+            'manager_id': self.manager_node,
+            'event': event,
+            'time': str(datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://0.0.0.0:3000/report', json=payload)
 
 # Instantiate the Node
 app = Flask(__name__)
@@ -143,10 +152,13 @@ class Mine(Thread):
                         'recipient': miner.node_identifier,
                         'amount': 1
                     }
+                    miner.generate_log('Miner found block')
                     r = requests.post(url=f'http://{miner.manager_node}/slave/done', json=block)
                     if r.status_code == requests.codes.ok:
                         #requests.post(url=f'http://{miner.manager_node}/transactions/new', json=payload)   # Reward miner for block
                         self.completed = True
+                        
+
 
         miner.current_transactions = []
         miner.last_block = dict()
@@ -158,6 +170,7 @@ class Mine(Thread):
 
 @app.route('/start', methods=['POST'])
 def start_mining():
+    miner.generate_log('Started mining')
     miner.is_mining = True
     values = request.get_json()
 
@@ -191,6 +204,7 @@ def start_mining():
 
 @app.route('/stop', methods=['GET'])
 def stop_mining():
+    miner.generate_log('Stopped mining')
     miner.is_mining = False
     return f'Mining process stoppped in node: {miner.node_address}', 200
 
@@ -232,6 +246,7 @@ def get_address():
 def start(address, port, manager_address):
     miner.set_address(f'{address}:{port}')
     miner.set_manager_address(f'{manager_address}')
+    miner.generate_log('Miner created')
 
     # Start flask app
     app.run(host='0.0.0.0', port=port, threaded=True)
