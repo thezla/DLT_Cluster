@@ -424,7 +424,6 @@ def slave_done():
     global block_found
     global waiting_for_response
     if not block_found:     # Ignore all requests except first one
-        block_found = True
         manager.generate_log('Slave done & block not found')
         stop_cluster()
         manager.stop_all_clusters()
@@ -432,8 +431,6 @@ def slave_done():
         manager.add_block(block)
         #if manager.stop_all_clusters()[1] == 200:
         manager.sync_transactions()
-        block_found = False
-        waiting_for_response = False
         start_cluster()
         manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
@@ -520,6 +517,8 @@ def start_cluster():
     if not cluster_running:
         if manager.slave_nodes:
             cluster_running = True
+            block_found = False
+            waiting_for_response = False
             manager.generate_log('Cluster mining initiated')
             return 'Cluster mining initiated!', 200
         return 'Error: No nodes in cluster', 400
@@ -533,6 +532,7 @@ def start_cluster():
 def stop_cluster():
     global cluster_running
     cluster_running = False
+    block_found = True
     for node in manager.slave_nodes:
         r = requests.get(f'http://{node}/stop')
         if not r.status_code == requests.codes.ok:
