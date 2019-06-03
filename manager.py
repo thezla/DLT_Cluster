@@ -512,7 +512,8 @@ def add_miner():
 @app.route('/cluster/start', methods=['GET'])
 def start_cluster():
     global cluster_running
-    #global block_found
+    global block_found
+    global waiting_for_response
 
     if not cluster_running:
         if manager.slave_nodes:
@@ -531,6 +532,8 @@ def start_cluster():
 @app.route('/cluster/stop', methods=['GET'])
 def stop_cluster():
     global cluster_running
+    global block_found
+
     cluster_running = False
     block_found = True
     for node in manager.slave_nodes:
