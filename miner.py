@@ -114,7 +114,7 @@ class Miner:
             'time': str(datetime.now())
         }
         # Send data to logging node
-        requests.post(url='http://0.0.0.0:3000/report', json=payload)
+        requests.post(url='http://127.0.0.1:3000/report', json=payload)
 
 # Instantiate the Node
 app = Flask(__name__)
@@ -249,4 +249,4 @@ def start(address, port, manager_address):
     miner.generate_log('Miner created')
 
     # Start flask app
-    app.run(host='0.0.0.0', port=port, threaded=True)
+    app.run(host='127.0.0.1', port=port, threaded=True)

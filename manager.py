@@ -29,7 +29,7 @@ class Blockchain:
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
 
         # Add first neighbor node
-        self.register_node("http://0.0.0.0:5000")
+        self.register_node("http://127.0.0.1:5000")
 
     def register_node(self, address):
         """
@@ -171,7 +171,7 @@ class Blockchain:
             'time': str(datetime.now())
         }
         # Send data to logging node
-        requests.post(url='http://0.0.0.0:4000/report', json=payload)
+        requests.post(url='http://127.0.0.1:4000/report', json=payload)
         return block
 
     def new_genesis_block(self, proof, previous_hash, block_transactions):
@@ -279,7 +279,7 @@ class Blockchain:
             'time': str(datetime.now())
         }
         # Send data to logging node
-        requests.post(url='http://0.0.0.0:3000/report', json=payload)
+        requests.post(url='http://127.0.0.1:3000/report', json=payload)
 
 
 # Instantiate the Node
@@ -348,7 +348,7 @@ class NewMiner(Thread):
     
     def run(self):
         port = manager.get_cluster_start_port()
-        address = f'0.0.0.0:{port}'
+        address = f'127.0.0.1:{port}'
         manager.slave_nodes.add(address)
         #man_address = manager.address
 
@@ -361,7 +361,7 @@ class NewMiner(Thread):
         SPEC_OS.loader.exec_module(new_miner)
         sys.modules[f'miner_{address}'] = new_miner
         manager.generate_log(f'Add miner {address}:{port} to cluster')
-        new_miner.start(address='http://0.0.0.0', port=port, manager_address=manager.address)
+        new_miner.start(address='http://127.0.0.1', port=port, manager_address=manager.address)
 
 
 class Sync(Thread):
@@ -501,7 +501,7 @@ def get_cluster():
 @app.route('/cluster/add_miner', methods=['GET'])
 def add_miner():
     async_task = NewMiner(task_id=3)
-    async_task.setName(f'New Miner: 0.0.0.0:{manager.get_cluster_start_port()}')
+    async_task.setName(f'New Miner: 127.0.0.1:{manager.get_cluster_start_port()}')
     try:
         with app.test_request_context():
             async_task.start()
@@ -593,14 +593,14 @@ def main():
     port = args.port
 
     # Add own address to node list
-    address = f'http://0.0.0.0:{port}'
+    address = f'http://127.0.0.1:{port}'
     manager.set_address(address)
     manager.register_node(address)
 
     # Prevent address collisions when using the local network, change this in bigger networks
 
     # Start Flask app
-    app.run(host='0.0.0.0', port=port, threaded=False)
+    app.run(host='127.0.0.1', port=port, threaded=False)
 
 if __name__ == '__main__':
     main()
