@@ -7,7 +7,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 timestamp = datetime.now()
-timestamp = timestamp.strftime('%Y-%m-%d_%H:%M:%S')
+timestamp = timestamp.strftime('%Y-%m-%d_%H_%M_%S')
 current_file = f'tmp/cluster_logs_{timestamp}.tsv'
 
 with open(current_file, 'a+') as out_file:
