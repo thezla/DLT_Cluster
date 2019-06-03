@@ -336,7 +336,6 @@ class Manage(Thread):
                 # Miners are done, start on another block
                 elif block_found:
                     waiting_for_response = False
-                    block_found = False
             else:
                 sleep(0.1)
 
@@ -434,6 +433,7 @@ def slave_done():
         manager.add_block(block)
         #if manager.stop_all_clusters()[1] == 200:
         manager.sync_transactions()
+        block_found = False
         start_cluster()
         manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
