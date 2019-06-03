@@ -334,8 +334,6 @@ class Manage(Thread):
                         start_value+=1
                     waiting_for_response = True
                 # Miners are done, start on another block
-                elif block_found:
-                    waiting_for_response = False
             else:
                 sleep(0.1)
 
@@ -424,6 +422,7 @@ def get_transactions():
 @app.route('/slave/done', methods=['POST'])
 def slave_done():
     global block_found
+    global waiting_for_response
     if not block_found:     # Ignore all requests except first one
         block_found = True
         manager.generate_log('Slave done & block not found')
@@ -434,6 +433,7 @@ def slave_done():
         #if manager.stop_all_clusters()[1] == 200:
         manager.sync_transactions()
         block_found = False
+        waiting_for_response = False
         start_cluster()
         manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
