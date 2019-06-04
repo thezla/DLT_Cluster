@@ -94,9 +94,9 @@ class Blockchain:
 
         while current_index < len(chain):
             block = chain[current_index]
-            print(f'{last_block}')
-            print(f'{block}')
-            print("\n-----------\n")
+            #print(f'{last_block}')
+            #print(f'{block}')
+            #print("\n-----------\n")
             # Check that the hash of the block is correct
             last_block_hash = self.hash(last_block)
             if block['previous_hash'] != last_block_hash:
@@ -110,6 +110,7 @@ class Blockchain:
             last_block = block
             current_index += 1
         return True
+    
 
     def resolve_conflicts(self):
         """
@@ -169,25 +170,25 @@ class Blockchain:
         :return: Block that was added
         """
         # Ensure we are the longest chain
-        if not self.resolve_conflicts():
-            self.chain.append(block)
-            manager.generate_log(f'Block added to chain by: {self.address}')
-            for transaction in block['transactions']:
-                if transaction['id'] in self.current_transactions:
-                    self.current_transactions.pop(transaction['id'])
-            
-            # Construct log entry
-            payload = {
-                'chain_height': len(self.chain),
-                'transaction_pool_size': len(self.current_transactions),
-                'miner_id': block['node'],
-                'manager_id': node_identifier,
-                'time': str(datetime.now())
-            }
-            # Send data to logging node
-            requests.post(url='http://127.0.0.1:4000/report', json=payload)
-            return block
-        manager.generate_log(f'Orphaned block, chain updated!')
+        #if not self.resolve_conflicts():
+        self.chain.append(block)
+        manager.generate_log(f'Block added to chain by: {self.address}')
+        for transaction in block['transactions']:
+            if transaction['id'] in self.current_transactions:
+                self.current_transactions.pop(transaction['id'])
+        
+        # Construct log entry
+        payload = {
+            'chain_height': len(self.chain),
+            'transaction_pool_size': len(self.current_transactions),
+            'miner_id': block['node'],
+            'manager_id': node_identifier,
+            'time': str(datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://127.0.0.1:4000/report', json=payload)
+        return block
+        #manager.generate_log(f'Orphaned block, chain updated!')
 
     def new_genesis_block(self, proof, previous_hash, block_transactions):
         if not self.chain:
@@ -228,12 +229,9 @@ class Blockchain:
 
 
     # TODO: Fixa transaktionssync
-    def sync_transactions(self):
-        if len(self.nodes) > 1:
-            for node in self.nodes:
-                if node is not self.address:
-                    return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
-                
+    def sync_transactions(self, node):
+        return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
+
 
     #@property
     def last_block(self):
@@ -441,13 +439,17 @@ def slave_done():
     if not block_found:     # Ignore all requests except first one
         manager.generate_log('Slave done & block not found')
         stop_cluster()
-        manager.stop_all_clusters()
+        #manager.stop_all_clusters()
         block = request.get_json()
         manager.add_block(block)
-        #if manager.stop_all_clusters()[1] == 200:
-        manager.sync_transactions()
+        manager.generate_log(f'Sending out block for validation')
+        for node in manager.nodes:
+            if node != manager.address:
+                r = requests.post(f'http://{node}/cluster/validate_block', json=block)
+                if r.status_code == 200:
+                    manager.sync_transactions(node)
         start_cluster()
-        manager.start_all_clusters()
+        #manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
     return 'Block already found, restarting mining', 400
 
@@ -519,8 +521,32 @@ def add_miner():
             async_task.start()
     except RuntimeError:
         return 'Could not create a new miner', 400
-
     return 'Miner node created and added to cluster!', 200
+
+
+@app.route('/cluster/validate_block', methods=['POST'])
+def validate_block():
+    block = request.get_json()
+    if int(block['index']) == int(manager.last_block()['index'])+1:
+        last_block_hash = manager.hash(manager.last_block())
+        if block['previous_hash'] != last_block_hash:
+            return 'Invalid block hash', 400
+        if not manager.valid_proof(manager.last_block['proof'], block['proof'], manager.last_block_hash):
+            return 'Invalid block proof', 400
+        else:
+            stop_cluster()
+            manager.add_block(block)
+            start_cluster()
+            return 'Block recieved, added to chain', 200
+
+    elif int(block['index']) > int(manager.last_block()['index']):
+        stop_cluster()
+        manager.resolve_conflicts()
+        start_cluster()
+        manager.generate_log('Orphanded block, chain replaced')
+        return 'Switched to new chain', 200
+    else:
+        return 'Invalid block index', 400
 
 
 # Tells cluster to start mining
@@ -535,7 +561,7 @@ def start_cluster():
             cluster_running = True
             block_found = False
             waiting_for_response = False
-            manager.generate_log('Cluster mining initiated')
+            manager.generate_log('Starting cluster mining')
             return 'Cluster mining initiated!', 200
         return 'Error: No nodes in cluster', 400
         manager.generate_log('Error: No nodes in cluster')
@@ -551,6 +577,7 @@ def stop_cluster():
 
     cluster_running = False
     block_found = True
+    manager.generate_log('Stopping cluster mining')
     for node in manager.slave_nodes:
         r = requests.get(f'http://{node}/stop')
         if not r.status_code == requests.codes.ok:
