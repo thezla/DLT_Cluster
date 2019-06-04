@@ -135,7 +135,7 @@ class Blockchain:
                     chain = response.json()['chain']
 
                     # Check if the length is longer and the chain is valid
-                    if length >= max_length and self.valid_chain(chain):
+                    if length > max_length and self.valid_chain(chain):
                         max_length = length
                         new_chain = chain
 
@@ -169,24 +169,25 @@ class Blockchain:
         :return: Block that was added
         """
         # Ensure we are the longest chain
-        self.chain.append(block)
-        self.resolve_conflicts()
-        manager.generate_log(f'Block added to chain by: {self.address}')
-        for transaction in block['transactions']:
-            if transaction['id'] in self.current_transactions:
-                self.current_transactions.pop(transaction['id'])
-        
-        # Construct log entry
-        payload = {
-            'chain_height': len(self.chain),
-            'transaction_pool_size': len(self.current_transactions),
-            'miner_id': block['node'],
-            'manager_id': node_identifier,
-            'time': str(datetime.now())
-        }
-        # Send data to logging node
-        requests.post(url='http://127.0.0.1:4000/report', json=payload)
-        return block
+        if not self.resolve_conflicts():
+            self.chain.append(block)
+            manager.generate_log(f'Block added to chain by: {self.address}')
+            for transaction in block['transactions']:
+                if transaction['id'] in self.current_transactions:
+                    self.current_transactions.pop(transaction['id'])
+            
+            # Construct log entry
+            payload = {
+                'chain_height': len(self.chain),
+                'transaction_pool_size': len(self.current_transactions),
+                'miner_id': block['node'],
+                'manager_id': node_identifier,
+                'time': str(datetime.now())
+            }
+            # Send data to logging node
+            requests.post(url='http://127.0.0.1:4000/report', json=payload)
+            return block
+        manager.generate_log(f'Orphaned block, chain updated!')
 
     def new_genesis_block(self, proof, previous_hash, block_transactions):
         if not self.chain:
