@@ -66,6 +66,20 @@ class Blockchain:
                     requests.post(url=f'http://{node}/nodes/register', json=payload, headers=headers)
         elif len(neighbors) == 1:
             self.address = list(neighbors)[0]
+    
+    def valid_proof(self, last_proof, proof, last_hash):
+        """
+        Validates the Proof
+
+        :param last_proof: <int> Previous Proof
+        :param proof: <int> Current Proof
+        :param last_hash: <str> The hash of the Previous Block
+        :return: <bool> True if correct, False if not.
+        """
+
+        guess = f'{last_proof}{proof}{last_hash}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+        return guess_hash[:5] == "00000"
 
     def valid_chain(self, chain):
         """
