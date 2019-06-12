@@ -24,6 +24,7 @@ class Blockchain:
         self.slave_nodes = set()
         self.address = ''
         self.cluster_start_port = 0
+        self.BLOCKCHAIN_ADDRESS = 'http://127.0.0.1:2000'
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
@@ -172,6 +173,7 @@ class Blockchain:
         # Ensure we are the longest chain
         #if not self.resolve_conflicts():
         self.chain.append(block)
+        #requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block', json=block)
         manager.generate_log(f'Block added to chain by: {self.address}')
         for transaction in block['transactions']:
             if transaction['id'] in self.current_transactions:
@@ -235,7 +237,9 @@ class Blockchain:
 
     #@property
     def last_block(self):
-        return self.chain[-1]
+        r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+        return r.json()['chain'][-1]
+        #return self.chain[-1]
 
     @staticmethod
     def hash(block):
@@ -328,9 +332,9 @@ class Manage(Thread):
 
         while True:
             if cluster_running and manager.current_transactions:
-                if chain_needs_resolving:
+                '''if chain_needs_resolving:
                     manager.resolve_conflicts()
-                    chain_needs_resolving = False
+                    chain_needs_resolving = False'''
 
                 if not waiting_for_response and not block_found:
                     
@@ -447,7 +451,7 @@ def slave_done():
         stop_cluster()
         #manager.stop_all_clusters()
         block = request.get_json()
-        manager.add_block(block)
+        #manager.add_block(block)
         manager.generate_log(f'Sending out block for validation')
         for node in manager.nodes:
             if node != manager.address:
@@ -545,18 +549,27 @@ def validate_block():
                 return 'Invalid block proof', 400
             else:
                 stop_cluster()
-                manager.add_block(block)
+                # manager.add_block(block)
+                payload = {
+                    'block': block,
+                    'manager_id': node_identifier,
+                    'manager_address': manager.address
+                }
+                requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=block)
                 start_cluster()
                 return 'Block recieved, added to chain', 200
 
-        elif int(block['index']) > int(manager.last_block()['index']):
-            stop_cluster()
-            chain_needs_resolving = True
-            start_cluster()
-            manager.generate_log('Orphanded block, chain replaced')
-            return 'Switched to new chain', 200
-        else:
-            return 'Invalid block index', 400
+        # Orphans cannot exist because of centralized chain!
+        #
+        # elif int(block['index']) > int(manager.last_block()['index']):
+        #     stop_cluster()
+        #     # chain_needs_resolving = True
+
+        #     start_cluster()
+        #     manager.generate_log('Orphanded block, chain replaced')
+        #     return 'Switched to new chain', 200
+        # else:
+        #     return 'Invalid block index', 400
     else:
         return 'Cluster not running', 400
 
