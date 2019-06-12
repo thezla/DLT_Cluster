@@ -311,6 +311,7 @@ is_syncing = True
 block_found = False
 waiting_for_response = False
 cluster_running = False
+chain_needs_resolving = False
 
 
 class Manage(Thread):
@@ -323,9 +324,14 @@ class Manage(Thread):
         global waiting_for_response
         global block_found
         global cluster_running
+        global chain_needs_resolving
 
         while True:
             if cluster_running and manager.current_transactions:
+                if chain_needs_resolving:
+                    manager.resolve_conflicts()
+                    chain_needs_resolving = False
+
                 if not waiting_for_response and not block_found:
                     
                     transactions = manager.compose_block_transactions()
@@ -526,27 +532,33 @@ def add_miner():
 
 @app.route('/cluster/validate_block', methods=['POST'])
 def validate_block():
-    block = request.get_json()
-    if int(block['index']) == int(manager.last_block()['index'])+1:
-        last_block_hash = manager.hash(manager.last_block())
-        if block['previous_hash'] != last_block_hash:
-            return 'Invalid block hash', 400
-        if not manager.valid_proof(manager.last_block['proof'], block['proof'], manager.last_block_hash):
-            return 'Invalid block proof', 400
-        else:
-            stop_cluster()
-            manager.add_block(block)
-            start_cluster()
-            return 'Block recieved, added to chain', 200
+    global cluster_running
+    global chain_needs_resolving
 
-    elif int(block['index']) > int(manager.last_block()['index']):
-        stop_cluster()
-        manager.resolve_conflicts()
-        start_cluster()
-        manager.generate_log('Orphanded block, chain replaced')
-        return 'Switched to new chain', 200
+    if cluster_running:
+        block = request.get_json()
+        if int(block['index']) == int(manager.last_block()['index'])+1:
+            last_block_hash = manager.hash(manager.last_block())
+            if block['previous_hash'] != last_block_hash:
+                return 'Invalid block hash', 400
+            if not manager.valid_proof(manager.last_block()['proof'], block['proof'], last_block_hash):
+                return 'Invalid block proof', 400
+            else:
+                stop_cluster()
+                manager.add_block(block)
+                start_cluster()
+                return 'Block recieved, added to chain', 200
+
+        elif int(block['index']) > int(manager.last_block()['index']):
+            stop_cluster()
+            chain_needs_resolving = True
+            start_cluster()
+            manager.generate_log('Orphanded block, chain replaced')
+            return 'Switched to new chain', 200
+        else:
+            return 'Invalid block index', 400
     else:
-        return 'Invalid block index', 400
+        return 'Cluster not running', 400
 
 
 # Tells cluster to start mining
@@ -617,6 +629,8 @@ def get_address():
 # Initialization --------------------
 # Activate syncing of manager node list
 sync_nodes()
+if len(manager.nodes) > 1:
+    manager.chain = requests.get('http://127.0.0.1:5000/chain')['chain']
 manager.generate_log('Manager created')
 
 # Get longest blockchain
@@ -645,7 +659,7 @@ def main():
     # Prevent address collisions when using the local network, change this in bigger networks
 
     # Start Flask app
-    app.run(host='127.0.0.1', port=port, threaded=False)
+    app.run(host='127.0.0.1', port=port, threaded=True)
 
 if __name__ == '__main__':
     main()
