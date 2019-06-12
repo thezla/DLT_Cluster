@@ -458,6 +458,7 @@ def slave_done():
                 r = requests.post(f'http://{node}/cluster/validate_block', json=block)
                 if r.status_code == 200:
                     manager.sync_transactions(node)
+                    requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=block)
         start_cluster()
         #manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
@@ -555,7 +556,6 @@ def validate_block():
                     'manager_id': node_identifier,
                     'manager_address': manager.address
                 }
-                requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=block)
                 start_cluster()
                 return 'Block recieved, added to chain', 200
 
