@@ -449,18 +449,28 @@ def slave_done():
     if not block_found:     # Ignore all requests except first one
         manager.generate_log('Slave done & block not found')
         stop_cluster()
-        #manager.stop_all_clusters()
         block = request.get_json()
-        #manager.add_block(block)
         manager.generate_log(f'Sending out block for validation')
+
+        # Remove transactions from local pool
+        for transaction in block['transactions']:
+            if transaction['id'] in manager.current_transactions:
+                manager.current_transactions.pop(transaction['id'])
+
+        # Push new transaction pool to nodes that agrees
         for node in manager.nodes:
             if node != manager.address:
                 r = requests.post(f'http://{node}/cluster/validate_block', json=block)
                 if r.status_code == 200:
                     manager.sync_transactions(node)
-                    requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=block)
+        payload = {
+            'block': block,
+            'manager_id': node_identifier,
+            'manager_address': manager.address,
+            'current_transactions': manager.current_transactions
+        }
+        requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=payload)
         start_cluster()
-        #manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
     return 'Block already found, restarting mining', 400
 
@@ -549,15 +559,7 @@ def validate_block():
             if not manager.valid_proof(manager.last_block()['proof'], block['proof'], last_block_hash):
                 return 'Invalid block proof', 400
             else:
-                stop_cluster()
-                # manager.add_block(block)
-                payload = {
-                    'block': block,
-                    'manager_id': node_identifier,
-                    'manager_address': manager.address
-                }
-                start_cluster()
-                return 'Block recieved, added to chain', 200
+                return 'Block correct, add to chain', 200
 
         # Orphans cannot exist because of centralized chain!
         #
@@ -630,7 +632,9 @@ def generate_transactions():
 @app.route('/transactions/update', methods=['POST'])
 def update_transactions():
     new_transactions = request.get_json()
+    stop_cluster()
     manager.current_transactions = new_transactions
+    start_cluster()
     return 'Transactions updated!', 200
 
 

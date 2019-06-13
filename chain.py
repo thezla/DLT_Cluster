@@ -39,19 +39,21 @@ class Chain:
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
 
+    def last_block(self):
+        return self.chain[-1]     
 
-    def add_block(self, block, manager_id, manager_address):
+
+    def add_block(self, block, manager_id, manager_address, current_transactions):
         """
         Add a new Block to the Blockchain
 
         :param block: The block to add
         :return: Block that was added
         """
-        last_block = last_block()
         self.chain.append(block)
         payload = {
             'chain_height': len(self.chain),
-            'transaction_pool_size': len(self.current_transactions),
+            'transaction_pool_size': len(current_transactions),
             'miner_id': block['node'],
             'manager_id': manager_id,
             'time': str(datetime.now())
@@ -59,10 +61,6 @@ class Chain:
         # Send data to logging node
         requests.post(url='http://127.0.0.1:4000/report', json=payload)
         return True
-
-
-    def last_block(self):
-        return self.chain[-1]        
 
 
 chain = Chain()
@@ -75,9 +73,8 @@ def append_block():
     required = ['block', 'manager_id', 'manager_address']
     if not all(k in values for k in required):
         return 'Missing values', 400
-    if chain.add_block(values['block'], values['manager_id'], values['manager_address']):
-        return 'Block added to chain', 200
-    return 'Block invalid', 400
+    chain.add_block(values['block'], values['manager_id'], values['manager_address'], values['current_transactions'])
+    return 'Block added to chain', 200
 
 
 @app.route('/get_chain', methods=['GET'])
