@@ -50,18 +50,19 @@ class Chain:
         :param block: The block to add
         :return: Block that was added
         """
-        self.chain.append(block)
-        payload = {
-            'chain_height': len(self.chain),
-            'transaction_pool_size': len(current_transactions),
-            'miner_id': block['node'],
-            'manager_id': manager_id,
-            'time': str(datetime.now())
-        }
-        # Send data to logging node
-        requests.post(url='http://127.0.0.1:4000/report', json=payload)
-        return True
-
+        if block['index'] == self.last_block()['index']+1:
+            self.chain.append(block)
+            payload = {
+                'chain_height': len(self.chain),
+                'transaction_pool_size': len(current_transactions),
+                'miner_id': block['node'],
+                'manager_id': manager_id,
+                'time': str(datetime.now())
+            }
+            # Send data to logging node
+            requests.post(url='http://127.0.0.1:4000/report', json=payload)
+            return True
+        return False
 
 chain = Chain()
 app = Flask(__name__)

@@ -328,7 +328,7 @@ class Manage(Thread):
         global waiting_for_response
         global block_found
         global cluster_running
-        global chain_needs_resolving
+        #global chain_needs_resolving
 
         while True:
             if cluster_running and manager.current_transactions:
@@ -450,18 +450,22 @@ def slave_done():
         manager.generate_log('Slave done & block not found')
         stop_cluster()
         block = request.get_json()
-        manager.generate_log(f'Sending out block for validation')
 
-        # Remove transactions from local pool
+        # Remove block transactions from local pool
         for transaction in block['transactions']:
             if transaction['id'] in manager.current_transactions:
                 manager.current_transactions.pop(transaction['id'])
 
-        # Push new transaction pool to nodes that agrees
+        manager.generate_log(f'Sending stop signal to all clusters')
+        # Push new transaction pool to nodes that agree
+        #manager.stop_all_clusters()
+        manager.generate_log(f'Sending out block for validation')
         for node in manager.nodes:
             if node != manager.address:
-                r = requests.post(f'http://{node}/cluster/validate_block', json=block)
+                r = requests.post(url=f'http://{node}/cluster/validate_block', json=block)
                 if r.status_code == 200:
+                    requests.get(url=f'http://{node}/cluster/stop')
+                    manager.generate_log(f'Syncing transactions')
                     manager.sync_transactions(node)
         payload = {
             'block': block,
@@ -469,8 +473,11 @@ def slave_done():
             'manager_address': manager.address,
             'current_transactions': manager.current_transactions
         }
+        manager.generate_log(f'Adding block to chain')
         requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=payload)
+        manager.generate_log(f'Sending start signal to all clusters')
         start_cluster()
+        manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
     return 'Block already found, restarting mining', 400
 
@@ -548,18 +555,27 @@ def add_miner():
 @app.route('/cluster/validate_block', methods=['POST'])
 def validate_block():
     global cluster_running
-    global chain_needs_resolving
+    #global chain_needs_resolving
 
-    if cluster_running:
-        block = request.get_json()
-        if int(block['index']) == int(manager.last_block()['index'])+1:
-            last_block_hash = manager.hash(manager.last_block())
-            if block['previous_hash'] != last_block_hash:
-                return 'Invalid block hash', 400
-            if not manager.valid_proof(manager.last_block()['proof'], block['proof'], last_block_hash):
-                return 'Invalid block proof', 400
-            else:
-                return 'Block correct, add to chain', 200
+    #if cluster_running:
+    block = request.get_json()
+    if int(block['index']) == int(manager.last_block()['index'])+1:
+        manager.generate_log('If 1 korrekt block index')
+        last_block_hash = manager.hash(manager.last_block())
+        if block['previous_hash'] != last_block_hash:
+            manager.generate_log('If 1.1 invalid block hash')
+            return 'Invalid block hash', 400
+        if not manager.valid_proof(manager.last_block()['proof'], block['proof'], last_block_hash):
+            manager.generate_log('If 1.2 invalid block proof')
+            return 'Invalid block proof', 400
+        else:
+            manager.generate_log('If 1.3 Correct block')
+            return 'Block correct, add to chain', 200
+    else:
+        manager.generate_log('Else 2 invalid block index')
+        return "Invalid index", 400
+    #manager.generate_log('If 3 cluster not running')
+    #return 'Cluster not running', 400
 
         # Orphans cannot exist because of centralized chain!
         #
@@ -572,8 +588,7 @@ def validate_block():
         #     return 'Switched to new chain', 200
         # else:
         #     return 'Invalid block index', 400
-    else:
-        return 'Cluster not running', 400
+
 
 
 # Tells cluster to start mining
@@ -582,7 +597,6 @@ def start_cluster():
     global cluster_running
     global block_found
     global waiting_for_response
-
     if not cluster_running:
         if manager.slave_nodes:
             cluster_running = True
@@ -606,9 +620,9 @@ def stop_cluster():
     block_found = True
     manager.generate_log('Stopping cluster mining')
     for node in manager.slave_nodes:
-        r = requests.get(f'http://{node}/stop')
-        if not r.status_code == requests.codes.ok:
-            return f'Failed to deactivate miner {node} in cluster', 400
+        requests.get(f'http://{node}/stop')
+        #if not r.status_code == requests.codes.ok:
+            #return f'Failed to deactivate miner {node} in cluster', 400
     return 'Cluster mining deactivated!', 200
 
 
@@ -632,9 +646,9 @@ def generate_transactions():
 @app.route('/transactions/update', methods=['POST'])
 def update_transactions():
     new_transactions = request.get_json()
-    stop_cluster()
+    #stop_cluster()
     manager.current_transactions = new_transactions
-    start_cluster()
+    #start_cluster()
     return 'Transactions updated!', 200
 
 
