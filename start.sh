@@ -25,5 +25,8 @@ sleep 2
 pipenv run python manager.py -p 5000 &
 PID4=$!
 sleep 1
-pipenv run python manager.py -p 5100
+pipenv run python manager.py -p 5100 &
 PID5=$!
+sleep 1
+pipenv run python manager.py -p 5200
+PID6=$!

@@ -8,6 +8,7 @@ from flask import Flask, jsonify, request
 class Chain:
     def __init__(self, *args, **kwargs):
         self.chain = []
+        self.address = "127.0.0.1:2000"
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
@@ -41,6 +42,16 @@ class Chain:
 
     def last_block(self):
         return self.chain[-1]     
+    
+    def generate_log(self, event):
+        payload = {
+            'miner_id': 'None',
+            'manager_id': self.address,
+            'event': event,
+            'time': str(datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://127.0.0.1:3000/report', json=payload)
 
 
     def add_block(self, block, manager_id, manager_address, current_transactions):
@@ -52,6 +63,7 @@ class Chain:
         """
         if block['index'] == self.last_block()['index']+1:
             self.chain.append(block)
+            self.generate_log(f'Chain accepted block from {manager_address}')
             payload = {
                 'chain_height': len(self.chain),
                 'transaction_pool_size': len(current_transactions),
@@ -62,6 +74,7 @@ class Chain:
             # Send data to logging node
             requests.post(url='http://127.0.0.1:4000/report', json=payload)
             return True
+        self.generate_log(f'Chain denied block from {manager_address} - tried {block["index"]} against {self.last_block()["index"]}')
         return False
 
 chain = Chain()

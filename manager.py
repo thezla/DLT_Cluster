@@ -82,6 +82,7 @@ class Blockchain:
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:5] == "00000"
 
+
     def valid_chain(self, chain):
         """
         Determine if a given manager is valid
