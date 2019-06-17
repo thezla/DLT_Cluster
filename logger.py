@@ -15,6 +15,10 @@ with open(current_file, 'a+') as out_file:
     tsv_writer = csv.writer(out_file, delimiter='\t')
     tsv_writer.writerow(['Chain Height', 'Transaction pool size', 'Miner id', 'Manager id', 'Timestamp'])
 
+with open(current_file_old, 'a+') as out_file:
+    tsv_writer = csv.writer(out_file, delimiter='\t')
+    tsv_writer.writerow(['Chain Height', 'Transaction pool size', 'Miner id', 'Timestamp'])
+
 @app.route('/report', methods=['POST'])
 def report():
     data = request.get_json()

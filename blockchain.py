@@ -19,6 +19,15 @@ class Blockchain:
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
+        # Log the genesis block
+        payload = {
+            'chain_height': len(self.chain),
+            'transaction_pool_size': len(self.current_transactions),
+            'miner_id': node_identifier,
+            'time': str(datetime.datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
 
         # Add first neighbor node
         self.register_node("http://127.0.0.1:5000")
@@ -169,7 +178,7 @@ class Blockchain:
                 'chain_height': len(self.chain),
                 'transaction_pool_size': len(self.current_transactions),
                 'miner_id': node_identifier,
-                'time': str(datetime.now())
+                'time': str(datetime.datetime.now())
             }
             # Send data to logging node
             requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
@@ -249,7 +258,7 @@ class Blockchain:
         last_proof = last_block['proof']
         last_hash = self.hash(last_block)
 
-        proof = 0
+        proof = random.randint(0, 100000)
         while self.valid_proof(last_proof, proof, last_hash) is False:
             proof += 1
         # Simulated mining
@@ -511,4 +520,4 @@ if __name__ == '__main__':
     node_address = address
 
     # Start flask app
-    app.run(host='127.0.0.1', port=port)
+    app.run(host='127.0.0.1', port=port, threaded=True)
