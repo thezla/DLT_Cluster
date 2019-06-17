@@ -19,15 +19,6 @@ class Blockchain:
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
-        # Log the genesis block
-        payload = {
-            'chain_height': len(self.chain),
-            'transaction_pool_size': len(self.current_transactions),
-            'miner_id': node_identifier,
-            'time': str(datetime.datetime.now())
-        }
-        # Send data to logging node
-        requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
 
         # Add first neighbor node
         self.register_node("http://127.0.0.1:5000")
@@ -75,9 +66,9 @@ class Blockchain:
 
         while current_index < len(chain):
             block = chain[current_index]
-            print(f'{last_block}')
-            print(f'{block}')
-            print("\n-----------\n")
+            #print(f'{last_block}')
+            #print(f'{block}')
+            #print("\n-----------\n")
             # Check that the hash of the block is correct
             last_block_hash = self.hash(last_block)
             if block['previous_hash'] != last_block_hash:
@@ -157,31 +148,39 @@ class Blockchain:
         :return: New Block
         """
         # Ensure we are the longest chain
-        if self.resolve_conflicts():
-            block_size = 0
-            for t in block_transactions:
-                block_size += t['size']
+        self.resolve_conflicts()
+        block_size = 0
+        for t in block_transactions:
+            block_size += t['size']
 
-            block = {
-                'index': len(self.chain) + 1,
-                'timestamp': str(datetime.datetime.now()),
-                'transactions': block_transactions,
-                'proof': proof,
-                'previous_hash': previous_hash or self.hash(self.chain[-1]),
-                'size': block_size,   # 2MB max size
-                'node': node_identifier
-            }
+        block = {
+            'index': len(self.chain) + 1,
+            'timestamp': str(datetime.datetime.now()),
+            'transactions': block_transactions,
+            'proof': proof,
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
+            'size': block_size,   # 2MB max size
+            'node': node_identifier
+        }
 
-            self.chain.append(block)
+        self.chain.append(block)
+        print(block['node'])
 
-            payload = {
-                'chain_height': len(self.chain),
-                'transaction_pool_size': len(self.current_transactions),
-                'miner_id': node_identifier,
-                'time': str(datetime.datetime.now())
-            }
-            # Send data to logging node
-            requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
+        # Send confirmed block to logger (3 blocks ago)
+        if len(self.chain) > 4:
+            transactions = 0
+            for b in self.chain:
+                transactions += len(b['transactions'])
+                if b['index'] == len(self.chain)-3:
+                    #transactions_left = len(self.current_transactions) + len(self.chain[b['index']+1]['transactions']) + len(self.chain[b['index']+2]['transactions']) + len(self.chain[b['index']+3]['transactions'])
+                    payload = {
+                        'chain_height': b['index'],
+                        'transactions_done': transactions,
+                        'miner_id': b['node'],
+                        'time': b['timestamp']
+                    }
+                    # Send data to logging node
+                    requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
             return block
     
     def new_genesis_block(self, proof, previous_hash, block_transactions):
@@ -197,6 +196,7 @@ class Blockchain:
                 'proof': proof,
                 'previous_hash': previous_hash or self.hash(self.chain[-1]),
                 'size': block_size,   # 2MB max size
+                'node': node_identifier
             }
 
             self.chain.append(block)
@@ -262,7 +262,7 @@ class Blockchain:
         while self.valid_proof(last_proof, proof, last_hash) is False:
             proof += 1
         # Simulated mining
-        sleep(random.randint(1,4))
+        #sleep(random.randint(1,4))
         return proof
 
     @staticmethod
@@ -278,7 +278,7 @@ class Blockchain:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:2] == "00"           # Hash made easy to simulate mining
+        return guess_hash[:5] == "00000"           # Hash made easy to simulate mining
     
 
 
@@ -520,4 +520,4 @@ if __name__ == '__main__':
     node_address = address
 
     # Start flask app
-    app.run(host='127.0.0.1', port=port, threaded=True)
+    app.run(host='127.0.0.1', port=port, threaded=False)
