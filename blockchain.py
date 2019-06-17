@@ -21,7 +21,7 @@ class Blockchain:
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
 
         # Add first neighbor node
-        self.register_node("http://0.0.0.0:5000")
+        self.register_node("http://127.0.0.1:5000")
 
     def register_node(self, address):
         """
@@ -155,7 +155,7 @@ class Blockchain:
 
             block = {
                 'index': len(self.chain) + 1,
-                'timestamp': datetime.datetime.now(),
+                'timestamp': str(datetime.datetime.now()),
                 'transactions': block_transactions,
                 'proof': proof,
                 'previous_hash': previous_hash or self.hash(self.chain[-1]),
@@ -164,6 +164,15 @@ class Blockchain:
             }
 
             self.chain.append(block)
+
+            payload = {
+                'chain_height': len(self.chain),
+                'transaction_pool_size': len(self.current_transactions),
+                'miner_id': node_identifier,
+                'time': str(datetime.now())
+            }
+            # Send data to logging node
+            requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
             return block
     
     def new_genesis_block(self, proof, previous_hash, block_transactions):
@@ -261,6 +270,7 @@ class Blockchain:
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:2] == "00"           # Hash made easy to simulate mining
+    
 
 
 # Instantiate the Node
@@ -468,9 +478,9 @@ def consensus():
 @app.route('/transactions/generate', methods=['POST'])
 def generate_transactions():
     values = request.get_json()
-    amount = values.get('amount')
+    number = values.get('number')
 
-    for i in range(0, amount):
+    for i in range(0, number):
         amount = recipient = random.randint(1,1000)
         sender = random.randint(1,100)
         recipient = random.randint(1,100)
@@ -496,9 +506,9 @@ if __name__ == '__main__':
     port = args.port
 
     # Add own address to node list
-    address = 'http://0.0.0.0:{}'.format(port)
+    address = 'http://127.0.0.1:{}'.format(port)
     blockchain.register_node(address)
     node_address = address
 
     # Start flask app
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='127.0.0.1', port=port)

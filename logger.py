@@ -9,6 +9,7 @@ app = Flask(__name__)
 timestamp = datetime.now()
 timestamp = timestamp.strftime('%Y-%m-%d_%H_%M_%S')
 current_file = f'tmp/cluster_data_{timestamp}.tsv'
+current_file_old = f'tmp_old/cluster_data_{timestamp}.tsv'
 
 with open(current_file, 'a+') as out_file:
     tsv_writer = csv.writer(out_file, delimiter='\t')
@@ -23,6 +24,15 @@ def report():
         tsv_writer.writerow([data['chain_height'], data['transaction_pool_size'], data['miner_id'], data['manager_id'], data['time']])
     return 'Data logged!', 200
 
+
+@app.route('/report_old', methods=['POST'])
+def report_old():
+    data = request.get_json()
+
+    with open(current_file_old, 'a') as out_file:
+        tsv_writer = csv.writer(out_file, delimiter='\t')
+        tsv_writer.writerow([data['chain_height'], data['transaction_pool_size'], data['miner_id'], data['time']])
+    return 'Data logged!', 200
 
 def main():
     app.run(host='127.0.0.1', port=4000, threaded=False)
