@@ -16,6 +16,7 @@ class Blockchain:
         self.current_transactions = []
         self.chain = []
         self.nodes = set()
+        self.BLOCKCHAIN_ADDRESS = 'http://127.0.0.1:2000'
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
@@ -148,13 +149,13 @@ class Blockchain:
         :return: New Block
         """
         # Ensure we are the longest chain
-        self.resolve_conflicts()
+        #self.resolve_conflicts()
         block_size = 0
         for t in block_transactions:
             block_size += t['size']
 
         block = {
-            'index': len(self.chain) + 1,
+            'index': self.last_block()['index'] + 1,
             'timestamp': str(datetime.datetime.now()),
             'transactions': block_transactions,
             'proof': proof,
@@ -163,9 +164,16 @@ class Blockchain:
             'node': node_identifier
         }
 
-        self.chain.append(block)
-        print(block['node'])
-
+        #self.chain.append(block)
+        payload = {
+            'block': block, 
+            'node_id': node_identifier, 
+            'node_address': node_address,
+            'current_transactions': self.current_transactions
+        }
+        requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block_old', json=payload)
+        #print(block['node'])
+        '''
         # Send confirmed block to logger (3 blocks ago)
         if len(self.chain) > 4:
             transactions = 0
@@ -181,7 +189,8 @@ class Blockchain:
                     }
                     # Send data to logging node
                     requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
-            return block
+        '''
+        return block
     
     def new_genesis_block(self, proof, previous_hash, block_transactions):
         if not self.chain:
@@ -219,18 +228,19 @@ class Blockchain:
             'id': str(uuid4()).replace('-', '')     # Unique ID
         })
 
-        return self.last_block['index'] + 1
+        return self.last_block()['index'] + 1
     
     # TODO: Fixa transaktionssync
     def resolve_transactions():
         pass
 
-
-    @property
+    #@property
     def last_block(self):
-        if self.chain:
-            return self.chain[-1]
-        return 0
+        #if self.chain:
+            #return self.chain[-1]
+        r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+        return r.json()['chain'][-1]
+
 
     @staticmethod
     def hash(block):
@@ -312,7 +322,7 @@ class Mine(threading.Thread):
             block_transactions = blockchain.compose_block_transactions()
             if block_transactions:
                 # We run the proof of work algorithm to get the next proof...
-                last_block = blockchain.last_block
+                last_block = blockchain.last_block()
                 proof = blockchain.proof_of_work(last_block)
 
                 # Forge the new Block by adding it to the chain
@@ -330,11 +340,11 @@ class Mine(threading.Thread):
 
                     # We must receive a reward for finding the proof.
                     # The sender is "0" to signify that this node has mined a new coin.
-                    blockchain.new_transaction(
-                        sender="0",
-                        recipient=node_identifier,
-                        amount=1,
-                    )
+                    # blockchain.new_transaction(
+                    #     sender="0",
+                    #     recipient=node_identifier,
+                    #     amount=1,
+                    # )
 
 class Sync(threading.Thread):
     def __init__(self, task_id):
@@ -490,14 +500,14 @@ def generate_transactions():
     number = values.get('number')
 
     for i in range(0, number):
-        amount = recipient = random.randint(1,1000)
+        amount = random.randint(1,1000)
         sender = random.randint(1,100)
         recipient = random.randint(1,100)
         while recipient == sender:
             recipient = random.randint(1,100)
         
         blockchain.new_transaction(sender, recipient, amount)
-    return '{amount} transactions generated!'
+    return f'{amount} transactions generated!'
 
 # Initialization --------------------
 # Activate syncing of node lists
@@ -505,6 +515,7 @@ sync_nodes()
 
 # Activate mining
 mine()
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser

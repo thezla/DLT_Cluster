@@ -11,6 +11,9 @@ trap ctrl_c INT
 
 pkill -9 python
 pipenv run python logger.py &
+pipenv run python debugger.py &
+sleep 1
+pipenv run python chain.py &
 sleep 1
 pipenv run python blockchain.py -p 5000 &
 sleep 1

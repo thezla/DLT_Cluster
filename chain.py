@@ -5,6 +5,8 @@ from datetime import datetime
 from time import time
 from flask import Flask, jsonify, request
 
+old_chain = False
+
 class Chain:
     def __init__(self, *args, **kwargs):
         self.chain = []
@@ -77,6 +79,31 @@ class Chain:
         self.generate_log(f'Chain denied block from {manager_address} - tried {block["index"]} against {self.last_block()["index"]}')
         return False
 
+    
+    def add_block_old(self, block, node_id, node_address, current_transactions):
+        """
+        Add a new Block to the Blockchain
+
+        :param block: The block to add
+        :return: Block that was added
+        """
+        if block['index'] == self.last_block()['index']+1:
+            self.chain.append(block)
+            self.generate_log(f'Chain accepted block from {node_address}')
+            payload = {
+                'chain_height': len(self.chain),
+                'transaction_pool_size': len(current_transactions),
+                'miner_id': block['node'],
+                'manager_id': node_id,
+                'time': str(datetime.now())
+            }
+            # Send data to logging node
+            requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
+            return True
+        self.generate_log(f'Chain denied block from {node_address} - tried {block["index"]} against {self.last_block()["index"]}')
+        return False
+
+
 chain = Chain()
 app = Flask(__name__)
 
@@ -88,6 +115,17 @@ def append_block():
     if not all(k in values for k in required):
         return 'Missing values', 400
     chain.add_block(values['block'], values['manager_id'], values['manager_address'], values['current_transactions'])
+    return 'Block added to chain', 200
+
+
+@app.route('/append_block_old', methods=['POST'])
+def append_block_old():
+    values = request.get_json()
+    old_chain = True
+    required = ['block', 'node_id', 'node_address']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
+    chain.add_block_old(values['block'], values['node_id'], values['node_address'], values['current_transactions'])
     return 'Block added to chain', 200
 
 
