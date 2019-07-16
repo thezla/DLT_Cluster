@@ -125,8 +125,9 @@ def append_block_old():
     required = ['block', 'node_id', 'node_address']
     if not all(k in values for k in required):
         return 'Missing values', 400
-    chain.add_block_old(values['block'], values['node_id'], values['node_address'], values['current_transactions'])
-    return 'Block added to chain', 200
+    if chain.add_block_old(values['block'], values['node_id'], values['node_address'], values['current_transactions']):
+        return 'Block added to chain', 200
+    return 'Block not added to chain', 400
 
 
 @app.route('/get_chain', methods=['GET'])
