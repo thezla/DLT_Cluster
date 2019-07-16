@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Scenario 1, script 1/2:
-#   8 miners
-#   2 Managers
+# Scenario 3, script 1/2:
+#   16 miners
+#   4 Managers
 #   1000 transactions
 
 function ctrl_c() {
@@ -21,4 +21,8 @@ pipenv run python chain.py &
 sleep 2
 pipenv run python manager.py -p 5000 &
 sleep 1
-pipenv run python manager.py -p 5100
+pipenv run python manager.py -p 5100 &
+sleep 1
+pipenv run python manager.py -p 5200 &
+sleep 1
+pipenv run python manager.py -p 5300
