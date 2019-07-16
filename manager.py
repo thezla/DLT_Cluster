@@ -65,6 +65,7 @@ class Blockchain:
                 # Do not request node list from itself
                 if node != self.address:
                     requests.post(url=f'http://{node}/nodes/register', json=payload, headers=headers)
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
         elif len(neighbors) == 1:
             self.address = list(neighbors)[0]
     
@@ -132,6 +133,7 @@ class Blockchain:
         for node in neighbours:
             if node != self.address:
                 response = requests.get(f'http://{node}/chain')
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
 
                 if response.status_code == requests.codes.ok:
                     length = response.json()['length']
@@ -233,12 +235,14 @@ class Blockchain:
 
     # TODO: Fixa transaktionssync
     def sync_transactions(self, node):
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
 
 
     #@property
     def last_block(self):
         r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         return r.json()['chain'][-1]
         #return self.chain[-1]
 
@@ -280,6 +284,7 @@ class Blockchain:
             for node in self.nodes:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/stop')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
             return 'Clusters stopped', 200
     
     def start_all_clusters(self):
@@ -287,6 +292,7 @@ class Blockchain:
             for node in self.nodes:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/start')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
             return 'Clusters started', 200
     
     def generate_log(self, event):
@@ -298,6 +304,9 @@ class Blockchain:
         }
         # Send data to logging node
         requests.post(url='http://127.0.0.1:3000/report', json=payload)
+    
+    def record_traffic(self):
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
 
 
 # Instantiate the Node
@@ -355,6 +364,7 @@ class Manage(Thread):
                             'start_value': start_value
                         }
                         requests.post(url='http://'+node+'/start', json=payload)
+                        requests.get(url='http://127.0.0.1:4000/report_traffic')
                         start_value+=1
                     waiting_for_response = True
                 # Miners are done, start on another block
@@ -464,8 +474,10 @@ def slave_done():
         for node in manager.nodes:
             if node != manager.address:
                 r = requests.post(url=f'http://{node}/cluster/validate_block', json=block)
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
                 if r.status_code == 200:
                     requests.get(url=f'http://{node}/cluster/stop')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
                     manager.generate_log(f'Syncing transactions')
                     manager.sync_transactions(node)
         payload = {
@@ -476,6 +488,7 @@ def slave_done():
         }
         manager.generate_log(f'Adding block to chain')
         requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=payload)
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         manager.generate_log(f'Sending start signal to all clusters')
         start_cluster()
         manager.start_all_clusters()
@@ -622,6 +635,7 @@ def stop_cluster():
     manager.generate_log('Stopping cluster mining')
     for node in manager.slave_nodes:
         requests.get(f'http://{node}/stop')
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         #if not r.status_code == requests.codes.ok:
             #return f'Failed to deactivate miner {node} in cluster', 400
     return 'Cluster mining deactivated!', 200
@@ -663,6 +677,7 @@ def get_address():
 sync_nodes()
 if len(manager.nodes) > 1:
     manager.chain = requests.get('http://127.0.0.1:5000/chain')['chain']
+    requests.get(url='http://127.0.0.1:4000/report_traffic')
 manager.generate_log('Manager created')
 
 # Get longest blockchain
