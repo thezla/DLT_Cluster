@@ -38,9 +38,9 @@ $ pipenv install
 
 ## TODO
 
-* Syncing of transactions between clusters
-
 * Make the program exit cleaner when CTRL-C is pressed.
+
+~~* Syncing of transactions between clusters~~
 
 ~~* Make miner nodes cooperate to find proof.~~
 
