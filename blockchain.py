@@ -197,17 +197,11 @@ class Blockchain:
             for node in self.nodes:
                 requests.get(url=f'http://{node}/mine')
             
-            # temp_transactions = []
-            # for tx in self.current_transactions:
-            #     if tx not in block_transactions:
-            #         temp_transactions.append(tx)
-            # self.current_transactions = temp_transactions
             return True
         else:
             return False
 
 
-    
     def new_genesis_block(self, proof, previous_hash, block_transactions):
         if not self.chain:
             block_size = 0
@@ -311,7 +305,6 @@ class Blockchain:
         return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
     
 
-
 # Instantiate the Node
 app = Flask(__name__)
 
@@ -349,18 +342,6 @@ class Mine(threading.Thread):
                 previous_hash = blockchain.hash(last_block)
                 blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
             sleep(0.1)
-
-            #         nodes = blockchain.nodes
-            #         for node in nodes:
-            #             requests.get(url=f'http://{node}/stop_mining')
-            #         for node in nodes:
-            #             requests.post(url=f'http://{node}/transactions/update', json=blockchain.current_transactions)
-            #         for node in nodes:
-            #             requests.get(url=f'http://{node}/mine')
-            #     else:
-            #         sleep(0.1)
-            # else:
-            #     sleep(0.1)
 
 
 class Sync(threading.Thread):
@@ -437,25 +418,6 @@ def get_transactions():
         'size': len(blockchain.current_transactions)
     }
     return jsonify(response), 200
-
-
-# @app.route('/transactions/sync', methods=['POST'])
-# def sync_transactions(self):
-#     values = request.get_json()
-
-#     transactions = values['transactions']
-#     if transactions is None:
-#         return "Error: Please supply a valid list of transactions", 400
-
-#     for trans in transactions:
-#         if trans not in self.current_transactions:      #TODO: Bättre datastruktur, hashmap?
-#             blockchain.new_transaction()
-
-#     response = {
-#         'message': 'New nodes have been added',
-#         'total_nodes': list(blockchain.nodes),
-#     }
-#     return jsonify(response), 201
 
 
 @app.route('/chain', methods=['GET'])
