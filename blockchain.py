@@ -79,7 +79,6 @@ class Blockchain:
 
             last_block = block
             current_index += 1
-
         return True
 
     def resolve_conflicts(self):
@@ -114,6 +113,7 @@ class Blockchain:
             self.chain = new_chain
             return True
         return False
+
 
     def compose_block_transactions(self):
         # Max size of block in "kilobytes"
@@ -183,6 +183,8 @@ class Blockchain:
         }
         r = requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block_old', json=payload)
         if r.status_code == 200:
+            # Pause mining to update transaction list
+            stop_mining()
             for node in self.nodes:
                 requests.get(url=f'http://{node}/mine/stop')
 
@@ -193,10 +195,10 @@ class Blockchain:
 
             for node in self.nodes:
                 self.sync_transactions(node)
-
+            # Resume mining
+            mine()
             for node in self.nodes:
                 requests.get(url=f'http://{node}/mine')
-            
             return True
         else:
             return False
@@ -220,6 +222,7 @@ class Blockchain:
 
             self.chain.append(block)
             return block
+
 
     def new_transaction(self, sender, recipient, amount):
         """
@@ -249,7 +252,7 @@ class Blockchain:
         r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
         while r.status_code != 200:
             r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
-            sleep(0.2)
+            sleep(0.5)
         return r.json()['chain'][-1]
 
 
@@ -264,6 +267,7 @@ class Blockchain:
         # We must make sure that the Dictionary is Ordered, or we'll have inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
+
 
     def proof_of_work(self, last_block):
         """
@@ -285,6 +289,7 @@ class Blockchain:
         # Simulated mining
         #sleep(random.randint(1,4))
         return proof
+
 
     @staticmethod
     def valid_proof(last_proof, proof, last_hash):
@@ -503,9 +508,7 @@ def generate_transactions():
 @app.route('/transactions/update', methods=['POST'])
 def update_transactions():
     new_transactions = request.get_json()
-    stop_mining()
     blockchain.current_transactions = new_transactions
-    mine()
     return 'Transactions updated!', 200
 
 
@@ -515,7 +518,6 @@ sync_nodes()
 
 # Activate mining
 mine()
-
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
