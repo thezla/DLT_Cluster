@@ -43,7 +43,27 @@ class Chain:
         return hashlib.sha256(block_string).hexdigest()
 
     def last_block(self):
-        return self.chain[-1]     
+        return self.chain[-1]
+
+    def valid_proof(self, last_proof, proof, last_hash):
+        """
+        Validates the Proof
+
+        :param last_proof: <int> Previous Proof
+        :param proof: <int> Current Proof
+        :param last_hash: <str> The hash of the Previous Block
+        :return: <bool> True if correct, False if not.
+        """
+
+        guess = f'{last_proof}{proof}{last_hash}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+        return guess_hash[:2] == "00"
+
+    def valid_block(self, block):
+        lb = self.last_block()
+        if self.valid_proof(lb['proof'], block['proof'], block['previous_hash']):
+            return True
+        return False
     
     def generate_log(self, event):
         payload = {
@@ -87,7 +107,7 @@ class Chain:
         :param block: The block to add
         :return: Block that was added
         """
-        if block['index'] == self.last_block()['index']+1:
+        if (block['index'] == self.last_block()['index']+1) and self.valid_block(block):
             self.chain.append(block)
             self.generate_log(f'Chain accepted block from {node_address}')
             payload = {

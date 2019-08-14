@@ -21,6 +21,6 @@ pipenv run python blockchain.py -p 5001 &
 sleep 1
 pipenv run python blockchain.py -p 5002 &
 sleep 1
-pipenv run python blockchain.py -p 5003 &
+pipenv run python blockchain.py -p 5003
 sleep 2
-curl -d '{"number": 1000}' -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/transactions/generate
+#curl -d '{"number": 1000}' -H "Content-Type: application/json" -X POST http://127.0.0.1:5000/transactions/generate

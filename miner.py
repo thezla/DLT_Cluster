@@ -155,6 +155,7 @@ class Mine(Thread):
                     }
                     miner.generate_log('Miner found block')
                     r = requests.post(url=f'http://{miner.manager_node}/slave/done', json=block)
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
                     if r.status_code == requests.codes.ok:
                         #requests.post(url=f'http://{miner.manager_node}/transactions/new', json=payload)   # Reward miner for block
                         self.completed = True
