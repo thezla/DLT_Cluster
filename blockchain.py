@@ -189,14 +189,14 @@ class Blockchain:
             for node in self.nodes:
                 requests.get(url=f'http://{node}/mine/stop')
 
+            # DEBUGGING
             self.generate_log(f'Current transactions: {len(self.current_transactions)}')
-            for tx in block_transactions:
-                if tx in self.current_transactions:
-                    self.generate_log(f'Transaction found in current_transactions')
-                    break
-                else:
-                    self.generate_log(f'Rogue transaction found!')
-                    break
+            tx = block_transactions[0]
+            if tx in self.current_transactions:
+                self.generate_log(f'Transaction found in current_transactions')
+            else:
+                self.generate_log(f'Rogue transaction found!')
+            # ----------
 
             for tx in block_transactions:
                 if tx in self.current_transactions:
@@ -400,6 +400,8 @@ def mine():
 def stop_mining():
     global is_mining
     is_mining = False
+    while not mine_loop_done:
+        sleep(0.1)
     return 'Mining process stopped', 200
 
 
@@ -531,8 +533,6 @@ def generate_transactions():
 @app.route('/transactions/update', methods=['POST'])
 def update_transactions():
     new_transactions = request.get_json()
-    while not mine_loop_done:
-        sleep(0.1)
     blockchain.current_transactions = new_transactions
     return 'Transactions updated!', 200
 
