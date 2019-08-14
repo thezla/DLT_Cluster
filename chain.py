@@ -57,13 +57,11 @@ class Chain:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:2] == "00"
+        return guess_hash[:4] == "0000"
 
     def valid_block(self, block):
         lb = self.last_block()
-        if self.valid_proof(lb['proof'], block['proof'], block['previous_hash']):
-            return True
-        return False
+        return self.valid_proof(lb['proof'], block['proof'], block['previous_hash'])
     
     def generate_log(self, event):
         payload = {
@@ -75,7 +73,7 @@ class Chain:
         # Send data to logging node
         requests.post(url='http://127.0.0.1:3000/report', json=payload)
 
-
+    # With clustering
     def add_block(self, block, manager_id, manager_address, current_transactions):
         """
         Add a new Block to the Blockchain
@@ -99,7 +97,7 @@ class Chain:
         self.generate_log(f'Chain denied block from {manager_address} - tried {block["index"]} against {self.last_block()["index"]}')
         return False
 
-    
+    # No clustering
     def add_block_old(self, block, node_id, node_address, current_transactions):
         """
         Add a new Block to the Blockchain
@@ -107,20 +105,25 @@ class Chain:
         :param block: The block to add
         :return: Block that was added
         """
-        if (block['index'] == self.last_block()['index']+1) and self.valid_block(block):
-            self.chain.append(block)
-            self.generate_log(f'Chain accepted block from {node_address}')
-            payload = {
-                'chain_height': len(self.chain),
-                'transaction_pool_size': len(current_transactions),
-                'miner_id': block['node'],
-                'manager_id': node_id,
-                'time': str(datetime.now())
-            }
-            # Send data to logging node
-            requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
-            return True
-        self.generate_log(f'Chain denied block from {node_address} - tried {block["index"]} against {self.last_block()["index"]}')
+        if (block['index'] == self.last_block()['index']+1):
+            if self.valid_block(block):
+                self.chain.append(block)
+                self.generate_log(f'Chain accepted block from {node_address}')
+                payload = {
+                    'chain_height': len(self.chain),
+                    'transaction_pool_size': len(current_transactions),
+                    'miner_id': block['node'],
+                    'manager_id': node_id,
+                    'time': str(datetime.now())
+                }
+                # Send data to logging node
+                requests.post(url='http://127.0.0.1:4000/report_old', json=payload)
+                self.generate_log(f'Accepted block: {block["previous_hash"]}\n{block}')
+                return True
+            else:
+                self.generate_log(f'Chain denied block from {node_address} - Incorrect block hash')
+        else:
+            self.generate_log(f'Chain denied block from {node_address} - tried {block["index"]} against {self.last_block()["index"]}')
         return False
 
 

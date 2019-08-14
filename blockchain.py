@@ -131,6 +131,7 @@ class Blockchain:
                     block_transactions.append(transaction)
                     block_size += transaction_size
         return block_transactions
+
         # if self.chain:
         #     while True:
         #         if self.current_transactions:
@@ -188,10 +189,20 @@ class Blockchain:
             for node in self.nodes:
                 requests.get(url=f'http://{node}/mine/stop')
 
+            self.generate_log(f'Current transactions: {len(self.current_transactions)}')
             for tx in block_transactions:
-                if tx in blockchain.current_transactions:
-                    index = blockchain.current_transactions.index(tx)
-                    blockchain.current_transactions.pop(index)
+                if tx in self.current_transactions:
+                    self.generate_log(f'Transaction found in current_transactions')
+                    break
+                else:
+                    self.generate_log(f'Rogue transaction found!')
+                    break
+
+            for tx in block_transactions:
+                if tx in self.current_transactions:
+                    index = self.current_transactions.index(tx)
+                    self.current_transactions.pop(index)
+            self.generate_log(f'Current transactions: {len(self.current_transactions)}')
 
             for node in self.nodes:
                 self.sync_transactions(node)
@@ -242,10 +253,7 @@ class Blockchain:
         })
 
         return self.last_block()['index'] + 1
-    
-    # TODO: Fixa transaktionssync
-    def resolve_transactions():
-        pass
+
 
     #@property
     def last_block(self):
@@ -304,10 +312,20 @@ class Blockchain:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:2] == "00"         # Hash made easy to simulate mining
+        return guess_hash[:4] == "0000"         # Hash made easy to simulate mining
     
     def sync_transactions(self, node):
         return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
+    
+    def generate_log(self, event):
+        payload = {
+            'miner_id': node_identifier,
+            'manager_id': node_address,
+            'event': event,
+            'time': str(datetime.datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://127.0.0.1:3000/report', json=payload)
     
 
 # Instantiate the Node
@@ -322,6 +340,7 @@ blockchain = Blockchain()
 
 # Activates / Deactivates mining process
 is_mining = True
+mine_loop_done = True
 
 # Activates / Deactivates node list syncing process
 is_syncing = True
@@ -334,6 +353,7 @@ class Mine(threading.Thread):
 
     def run(self):
         while is_mining:
+            mine_loop_done = False
             #TODO: Sync transactions across network
 
             # Compose list of transactions of block
@@ -347,6 +367,7 @@ class Mine(threading.Thread):
                 previous_hash = blockchain.hash(last_block)
                 blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
             sleep(0.1)
+        mine_loop_done = True
 
 
 class Sync(threading.Thread):
@@ -364,6 +385,8 @@ class Sync(threading.Thread):
 def mine():
     global is_mining
     is_mining = True
+    while not mine_loop_done:
+        sleep(0.1)
     async_task = Mine(task_id=1)
     try:
         with app.test_request_context():
@@ -508,6 +531,8 @@ def generate_transactions():
 @app.route('/transactions/update', methods=['POST'])
 def update_transactions():
     new_transactions = request.get_json()
+    while not mine_loop_done:
+        sleep(0.1)
     blockchain.current_transactions = new_transactions
     return 'Transactions updated!', 200
 
