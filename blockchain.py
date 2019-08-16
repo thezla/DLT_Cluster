@@ -16,12 +16,13 @@ class Blockchain:
         self.current_transactions = []
         self.chain = []
         self.nodes = set()
+        self.BLOCKCHAIN_ADDRESS = 'http://127.0.0.1:2000'
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
 
         # Add first neighbor node
-        self.register_node("http://0.0.0.0:5000")
+        self.register_node("http://127.0.0.1:5000")
 
     def register_node(self, address):
         """
@@ -66,9 +67,7 @@ class Blockchain:
 
         while current_index < len(chain):
             block = chain[current_index]
-            print(f'{last_block}')
-            print(f'{block}')
-            print("\n-----------\n")
+
             # Check that the hash of the block is correct
             last_block_hash = self.hash(last_block)
             if block['previous_hash'] != last_block_hash:
@@ -80,7 +79,6 @@ class Blockchain:
 
             last_block = block
             current_index += 1
-
         return True
 
     def resolve_conflicts(self):
@@ -116,28 +114,41 @@ class Blockchain:
             return True
         return False
 
+
     def compose_block_transactions(self):
         # Max size of block in "kilobytes"
         max_size = 2000
-
         block_size = 0
         block_transactions = []
-        if self.chain:
-            while True:
-                if self.current_transactions:
-                    transaction_size = self.current_transactions[0]['size']
-                    if (transaction_size + block_size) <= max_size:
-                        block_transactions.append(self.current_transactions[0])
-                        del self.current_transactions[0]
-                        block_size += transaction_size
-                    else:
-                        break
-                else:
-                    # Put transactions back in front of queue
-                    for e in reversed(block_transactions):
-                        self.current_transactions.insert(0, e)
-                    return []
+
+        for transaction in self.current_transactions:
+            transaction_size = transaction['size']
+            if (transaction_size + block_size) > max_size:
+                return block_transactions
+            else:
+                if transaction:
+                    block_transactions.append(transaction)
+                    block_size += transaction_size
         return block_transactions
+
+        # if self.chain:
+        #     while True:
+        #         if self.current_transactions:
+        #             transaction_size = self.current_transactions[0]['size']
+        #             if (transaction_size + block_size) <= max_size:
+        #                 block_transactions.append(self.current_transactions.pop(0))
+        #                 #del self.current_transactions[0]
+        #                 block_size += transaction_size
+        #             else:
+        #                 break
+        #         else:
+        #             # Put transactions back in front of queue
+        #             for e in reversed(block_transactions):
+        #                 self.current_transactions.insert(0, e)
+        #             return []
+        # return block_transactions
+
+
 
     def new_block(self, proof, previous_hash, block_transactions, node_identifier):
         """
@@ -148,24 +159,68 @@ class Blockchain:
         :return: New Block
         """
         # Ensure we are the longest chain
-        if self.resolve_conflicts():
-            block_size = 0
-            for t in block_transactions:
-                block_size += t['size']
+        #self.resolve_conflicts()
+        block_size = 0
+        for t in block_transactions:
+            block_size += t['size']
 
-            block = {
-                'index': len(self.chain) + 1,
-                'timestamp': datetime.datetime.now(),
-                'transactions': block_transactions,
-                'proof': proof,
-                'previous_hash': previous_hash or self.hash(self.chain[-1]),
-                'size': block_size,   # 2MB max size
-                'node': node_identifier
-            }
+        block = {
+            'index': self.last_block()['index'] + 1,
+            'timestamp': str(datetime.datetime.now()),
+            'transactions': block_transactions,
+            'proof': proof,
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
+            'size': block_size,   # 2MB max size
+            'node': node_identifier
+        }
 
-            self.chain.append(block)
-            return block
-    
+        #self.chain.append(block)
+        payload = {
+            'block': block, 
+            'node_id': node_identifier, 
+            'node_address': node_address,
+            'current_transactions': self.current_transactions
+        }
+
+        for node in self.nodes:
+            if node != node_address:
+                r = requests.post(url=f'http://{node}/validate', json=block)
+                if r.status_code != 200:
+                    return False
+
+        r = requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block_old', json=payload)
+        if r.status_code == 200:
+            # Pause mining to update transaction list
+            stop_mining()
+            for node in self.nodes:
+                requests.get(url=f'http://{node}/mine/stop')
+
+            # DEBUGGING
+            self.generate_log(f'Current transactions: {len(self.current_transactions)}')
+            tx = block_transactions[0]
+            if tx in self.current_transactions:
+                self.generate_log(f'Transaction found in current_transactions')
+            else:
+                self.generate_log(f'Rogue transaction found!')
+            # ----------
+
+            for tx in block_transactions:
+                if tx in self.current_transactions:
+                    index = self.current_transactions.index(tx)
+                    self.current_transactions.pop(index)
+            self.generate_log(f'Current transactions: {len(self.current_transactions)}')
+
+            for node in self.nodes:
+                self.sync_transactions(node)
+            # Resume mining
+            mine()
+            for node in self.nodes:
+                requests.get(url=f'http://{node}/mine')
+            return True
+        else:
+            return False
+
+
     def new_genesis_block(self, proof, previous_hash, block_transactions):
         if not self.chain:
             block_size = 0
@@ -179,10 +234,12 @@ class Blockchain:
                 'proof': proof,
                 'previous_hash': previous_hash or self.hash(self.chain[-1]),
                 'size': block_size,   # 2MB max size
+                'node': node_identifier
             }
 
             self.chain.append(block)
             return block
+
 
     def new_transaction(self, sender, recipient, amount):
         """
@@ -201,18 +258,17 @@ class Blockchain:
             'id': str(uuid4()).replace('-', '')     # Unique ID
         })
 
-        return self.last_block['index'] + 1
-    
-    # TODO: Fixa transaktionssync
-    def resolve_transactions():
-        pass
+        return self.last_block()['index'] + 1
 
 
-    @property
+    #@property
     def last_block(self):
-        if self.chain:
-            return self.chain[-1]
-        return 0
+        r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+        while r.status_code != 200:
+            r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+            sleep(0.5)
+        return r.json()['chain'][-1]
+
 
     @staticmethod
     def hash(block):
@@ -225,6 +281,7 @@ class Blockchain:
         # We must make sure that the Dictionary is Ordered, or we'll have inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
+
 
     def proof_of_work(self, last_block):
         """
@@ -240,12 +297,13 @@ class Blockchain:
         last_proof = last_block['proof']
         last_hash = self.hash(last_block)
 
-        proof = 0
+        proof = random.randint(0, 100000)
         while self.valid_proof(last_proof, proof, last_hash) is False:
             proof += 1
         # Simulated mining
-        sleep(random.randint(1,4))
+        #sleep(random.randint(1,4))
         return proof
+
 
     @staticmethod
     def valid_proof(last_proof, proof, last_hash):
@@ -260,8 +318,21 @@ class Blockchain:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:2] == "00"           # Hash made easy to simulate mining
-
+        return guess_hash[:5] == "00000"         # Hash made easy to simulate mining
+    
+    def sync_transactions(self, node):
+        return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
+    
+    def generate_log(self, event):
+        payload = {
+            'miner_id': node_identifier,
+            'manager_id': node_address,
+            'event': event,
+            'time': str(datetime.datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://127.0.0.1:3000/report', json=payload)
+    
 
 # Instantiate the Node
 app = Flask(__name__)
@@ -274,7 +345,8 @@ node_address = ""
 blockchain = Blockchain()
 
 # Activates / Deactivates mining process
-is_mining = False
+is_mining = True
+mine_loop_done = True
 
 # Activates / Deactivates node list syncing process
 is_syncing = True
@@ -286,36 +358,25 @@ class Mine(threading.Thread):
         self.task_id = task_id
 
     def run(self):
-        while is_mining:
-            #TODO: Sync transactions across network
+        while True:
+            while is_mining:
+                #mine_loop_done = False
 
-            # Compose list of transactions of block
-            block_transactions = blockchain.compose_block_transactions()
-            if block_transactions:
-                # We run the proof of work algorithm to get the next proof...
-                last_block = blockchain.last_block
-                proof = blockchain.proof_of_work(last_block)
+                # Compose list of transactions of block
+                block_transactions = blockchain.compose_block_transactions()
+                if block_transactions:
+                    # We run the proof of work algorithm to get the next proof...
+                    last_block = blockchain.last_block()
+                    proof = blockchain.proof_of_work(last_block)
 
-                # Forge the new Block by adding it to the chain
-                previous_hash = blockchain.hash(last_block)
-                block = blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
-                if block != None:
-                    response = {
-                        'message': "New Block Forged",
-                        'index': block['index'],
-                        'transactions': block['transactions'],
-                        'proof': block['proof'],
-                        'previous_hash': block['previous_hash'],
-                        'size': block['size']
-                    }
+                    # Forge the new Block by adding it to the chain
+                    previous_hash = blockchain.hash(last_block)
+                    blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
+                sleep(0.1)
 
-                    # We must receive a reward for finding the proof.
-                    # The sender is "0" to signify that this node has mined a new coin.
-                    blockchain.new_transaction(
-                        sender="0",
-                        recipient=node_identifier,
-                        amount=1,
-                    )
+            #mine_loop_done = True
+            sleep(0.2)
+
 
 class Sync(threading.Thread):
     def __init__(self, task_id):
@@ -330,22 +391,31 @@ class Sync(threading.Thread):
 
 @app.route('/mine', methods=['GET'])
 def mine():
+    # while not mine_loop_done:
+    #     sleep(0.1)
     global is_mining
-    is_mining = True
-    async_task = Mine(task_id=1)
-    try:
-        with app.test_request_context():
-            async_task.start()
-        return 'Started mining process', 200
-    except RuntimeError:
+    if is_mining:
         return 'Node is already mining', 400
+    else:
+        is_mining = True
+        return 'Started mining process', 200
+
+    # async_task = Mine(task_id=1)
+    # try:
+    #     with app.test_request_context():
+    #         async_task.start()
+    #     return 'Started mining process', 200
+    # except RuntimeError:
+    #     return 'Node is already mining', 400
 
 
 @app.route('/mine/stop', methods=['GET'])
 def stop_mining():
     global is_mining
     is_mining = False
-    return 'Mining process stopped', 400
+    # while not mine_loop_done:
+    #     sleep(0.1)
+    return 'Mining process stopped', 200
 
 
 @app.route('/sync', methods=['GET'])
@@ -391,25 +461,6 @@ def get_transactions():
         'size': len(blockchain.current_transactions)
     }
     return jsonify(response), 200
-
-
-@app.route('/transactions/sync', methods=['POST'])
-def sync_transactions(self):
-    values = request.get_json()
-
-    transactions = values['transactions']
-    if transactions is None:
-        return "Error: Please supply a valid list of transactions", 400
-
-    for trans in transactions:
-        if trans not in self.current_transactions:      #TODO: Bättre datastruktur, hashmap?
-            blockchain.new_transaction()
-
-    response = {
-        'message': 'New nodes have been added',
-        'total_nodes': list(blockchain.nodes),
-    }
-    return jsonify(response), 201
 
 
 @app.route('/chain', methods=['GET'])
@@ -468,24 +519,70 @@ def consensus():
 @app.route('/transactions/generate', methods=['POST'])
 def generate_transactions():
     values = request.get_json()
-    amount = values.get('amount')
+    number = values.get('number')
+    new_transactions = []
 
-    for i in range(0, amount):
-        amount = recipient = random.randint(1,1000)
+    for i in range(0, number):
+        amount = random.randint(1,1000)
         sender = random.randint(1,100)
         recipient = random.randint(1,100)
         while recipient == sender:
             recipient = random.randint(1,100)
         
-        blockchain.new_transaction(sender, recipient, amount)
-    return '{amount} transactions generated!'
+        new_transactions.append({
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
+            'size': random.randint(10,100),         # Simulated size in kilobytes
+            'id': str(uuid4()).replace('-', '')     # Unique ID
+        })
+        #blockchain.new_transaction(sender, recipient, amount)
+
+    blockchain.current_transactions.extend(new_transactions)
+
+    return f'{number} transactions generated!'
+
+
+@app.route('/transactions/update', methods=['POST'])
+def update_transactions():
+    new_transactions = request.get_json()
+    blockchain.current_transactions = new_transactions
+    return 'Transactions updated!', 200
+
+
+@app.route('/validate', methods=['POST'])
+def validate_block():
+    block = request.get_json()
+    if int(block['index']) == int(blockchain.last_block()['index'])+1:
+        #manager.generate_log('If 1 korrekt block index')
+        last_block_hash = blockchain.hash(blockchain.last_block())
+        if block['previous_hash'] != last_block_hash:
+            #manager.generate_log('If 1.1 invalid block hash')
+            return 'Invalid block hash', 400
+        if not blockchain.valid_proof(blockchain.last_block()['proof'], block['proof'], last_block_hash):
+            #manager.generate_log('If 1.2 invalid block proof')
+            return 'Invalid block proof', 400
+        else:
+            #manager.generate_log('If 1.3 Correct block')
+            return 'Block correct, add to chain', 200
+    else:
+        #manager.generate_log('Else 2 invalid block index')
+        return "Invalid index", 400
+
 
 # Initialization --------------------
 # Activate syncing of node lists
 sync_nodes()
 
 # Activate mining
-mine()
+#mine()
+async_task = Mine(task_id=1)
+try:
+    with app.test_request_context():
+        async_task.start()
+except:
+    raise Exception
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -496,9 +593,9 @@ if __name__ == '__main__':
     port = args.port
 
     # Add own address to node list
-    address = 'http://0.0.0.0:{}'.format(port)
+    address = 'http://127.0.0.1:{}'.format(port)
     blockchain.register_node(address)
     node_address = address
 
     # Start flask app
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='127.0.0.1', port=port, threaded=False)

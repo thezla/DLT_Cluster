@@ -24,6 +24,7 @@ class Blockchain:
         self.slave_nodes = set()
         self.address = ''
         self.cluster_start_port = 0
+        self.BLOCKCHAIN_ADDRESS = 'http://127.0.0.1:2000'
 
         # Create the genesis block
         self.new_genesis_block(previous_hash='1', proof=100, block_transactions=[])
@@ -64,6 +65,7 @@ class Blockchain:
                 # Do not request node list from itself
                 if node != self.address:
                     requests.post(url=f'http://{node}/nodes/register', json=payload, headers=headers)
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
         elif len(neighbors) == 1:
             self.address = list(neighbors)[0]
     
@@ -81,6 +83,7 @@ class Blockchain:
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:5] == "00000"
 
+
     def valid_chain(self, chain):
         """
         Determine if a given manager is valid
@@ -94,9 +97,9 @@ class Blockchain:
 
         while current_index < len(chain):
             block = chain[current_index]
-            print(f'{last_block}')
-            print(f'{block}')
-            print("\n-----------\n")
+            #print(f'{last_block}')
+            #print(f'{block}')
+            #print("\n-----------\n")
             # Check that the hash of the block is correct
             last_block_hash = self.hash(last_block)
             if block['previous_hash'] != last_block_hash:
@@ -110,6 +113,7 @@ class Blockchain:
             last_block = block
             current_index += 1
         return True
+    
 
     def resolve_conflicts(self):
         """
@@ -129,6 +133,7 @@ class Blockchain:
         for node in neighbours:
             if node != self.address:
                 response = requests.get(f'http://{node}/chain')
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
 
                 if response.status_code == requests.codes.ok:
                     length = response.json()['length']
@@ -161,6 +166,7 @@ class Blockchain:
                     block_size += transaction_size
         return block_transactions
 
+
     def add_block(self, block):
         """
         Add a new Block to the Blockchain
@@ -169,25 +175,26 @@ class Blockchain:
         :return: Block that was added
         """
         # Ensure we are the longest chain
-        if not self.resolve_conflicts():
-            self.chain.append(block)
-            manager.generate_log(f'Block added to chain by: {self.address}')
-            for transaction in block['transactions']:
-                if transaction['id'] in self.current_transactions:
-                    self.current_transactions.pop(transaction['id'])
-            
-            # Construct log entry
-            payload = {
-                'chain_height': len(self.chain),
-                'transaction_pool_size': len(self.current_transactions),
-                'miner_id': block['node'],
-                'manager_id': node_identifier,
-                'time': str(datetime.now())
-            }
-            # Send data to logging node
-            requests.post(url='http://127.0.0.1:4000/report', json=payload)
-            return block
-        manager.generate_log(f'Orphaned block, chain updated!')
+        #if not self.resolve_conflicts():
+        self.chain.append(block)
+        #requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block', json=block)
+        manager.generate_log(f'Block added to chain by: {self.address}')
+        for transaction in block['transactions']:
+            if transaction['id'] in self.current_transactions:
+                self.current_transactions.pop(transaction['id'])
+        
+        # Construct log entry
+        payload = {
+            'chain_height': len(self.chain),
+            'transaction_pool_size': len(self.current_transactions),
+            'miner_id': block['node'],
+            'manager_id': node_identifier,
+            'time': str(datetime.now())
+        }
+        # Send data to logging node
+        requests.post(url='http://127.0.0.1:4000/report', json=payload)
+        return block
+        #manager.generate_log(f'Orphaned block, chain updated!')
 
     def new_genesis_block(self, proof, previous_hash, block_transactions):
         if not self.chain:
@@ -228,16 +235,17 @@ class Blockchain:
 
 
     # TODO: Fixa transaktionssync
-    def sync_transactions(self):
-        if len(self.nodes) > 1:
-            for node in self.nodes:
-                if node is not self.address:
-                    return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
-                
+    def sync_transactions(self, node):
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
+        return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
+
 
     #@property
     def last_block(self):
-        return self.chain[-1]
+        r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
+        return r.json()['chain'][-1]
+        #return self.chain[-1]
 
     @staticmethod
     def hash(block):
@@ -277,6 +285,7 @@ class Blockchain:
             for node in self.nodes:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/stop')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
             return 'Clusters stopped', 200
     
     def start_all_clusters(self):
@@ -284,6 +293,7 @@ class Blockchain:
             for node in self.nodes:
                 if node is not self.address:
                     requests.get(url=f'http://{node}/cluster/start')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
             return 'Clusters started', 200
     
     def generate_log(self, event):
@@ -295,6 +305,9 @@ class Blockchain:
         }
         # Send data to logging node
         requests.post(url='http://127.0.0.1:3000/report', json=payload)
+    
+    def record_traffic(self):
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
 
 
 # Instantiate the Node
@@ -313,6 +326,7 @@ is_syncing = True
 block_found = False
 waiting_for_response = False
 cluster_running = False
+chain_needs_resolving = False
 
 
 class Manage(Thread):
@@ -325,9 +339,14 @@ class Manage(Thread):
         global waiting_for_response
         global block_found
         global cluster_running
+        #global chain_needs_resolving
 
         while True:
             if cluster_running and manager.current_transactions:
+                '''if chain_needs_resolving:
+                    manager.resolve_conflicts()
+                    chain_needs_resolving = False'''
+
                 if not waiting_for_response and not block_found:
                     
                     transactions = manager.compose_block_transactions()
@@ -346,6 +365,7 @@ class Manage(Thread):
                             'start_value': start_value
                         }
                         requests.post(url='http://'+node+'/start', json=payload)
+                        requests.get(url='http://127.0.0.1:4000/report_traffic')
                         start_value+=1
                     waiting_for_response = True
                 # Miners are done, start on another block
@@ -441,11 +461,36 @@ def slave_done():
     if not block_found:     # Ignore all requests except first one
         manager.generate_log('Slave done & block not found')
         stop_cluster()
-        manager.stop_all_clusters()
         block = request.get_json()
-        manager.add_block(block)
-        #if manager.stop_all_clusters()[1] == 200:
-        manager.sync_transactions()
+
+        # Remove block transactions from local pool
+        for transaction in block['transactions']:
+            if transaction['id'] in manager.current_transactions:
+                manager.current_transactions.pop(transaction['id'])
+
+        manager.generate_log(f'Sending stop signal to all clusters')
+        # Push new transaction pool to nodes that agree
+        #manager.stop_all_clusters()
+        manager.generate_log(f'Sending out block for validation')
+        for node in manager.nodes:
+            if node != manager.address:
+                r = requests.post(url=f'http://{node}/cluster/validate_block', json=block)
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
+                if r.status_code == 200:
+                    requests.get(url=f'http://{node}/cluster/stop')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
+                    manager.generate_log(f'Syncing transactions')
+                    manager.sync_transactions(node)
+        payload = {
+            'block': block,
+            'manager_id': node_identifier,
+            'manager_address': manager.address,
+            'current_transactions': manager.current_transactions
+        }
+        manager.generate_log(f'Adding block to chain')
+        requests.post(url=f'{manager.BLOCKCHAIN_ADDRESS}/append_block', json=payload)
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
+        manager.generate_log(f'Sending start signal to all clusters')
         start_cluster()
         manager.start_all_clusters()
         return 'Block recieved, restarting mining', 200
@@ -519,8 +564,46 @@ def add_miner():
             async_task.start()
     except RuntimeError:
         return 'Could not create a new miner', 400
-
     return 'Miner node created and added to cluster!', 200
+
+
+@app.route('/cluster/validate_block', methods=['POST'])
+def validate_block():
+    global cluster_running
+    #global chain_needs_resolving
+
+    #if cluster_running:
+    block = request.get_json()
+    if int(block['index']) == int(manager.last_block()['index'])+1:
+        manager.generate_log('If 1 korrekt block index')
+        last_block_hash = manager.hash(manager.last_block())
+        if block['previous_hash'] != last_block_hash:
+            manager.generate_log('If 1.1 invalid block hash')
+            return 'Invalid block hash', 400
+        if not manager.valid_proof(manager.last_block()['proof'], block['proof'], last_block_hash):
+            manager.generate_log('If 1.2 invalid block proof')
+            return 'Invalid block proof', 400
+        else:
+            manager.generate_log('If 1.3 Correct block')
+            return 'Block correct, add to chain', 200
+    else:
+        manager.generate_log('Else 2 invalid block index')
+        return "Invalid index", 400
+    #manager.generate_log('If 3 cluster not running')
+    #return 'Cluster not running', 400
+
+        # Orphans cannot exist because of centralized chain!
+        #
+        # elif int(block['index']) > int(manager.last_block()['index']):
+        #     stop_cluster()
+        #     # chain_needs_resolving = True
+
+        #     start_cluster()
+        #     manager.generate_log('Orphanded block, chain replaced')
+        #     return 'Switched to new chain', 200
+        # else:
+        #     return 'Invalid block index', 400
+
 
 
 # Tells cluster to start mining
@@ -529,13 +612,12 @@ def start_cluster():
     global cluster_running
     global block_found
     global waiting_for_response
-
     if not cluster_running:
         if manager.slave_nodes:
             cluster_running = True
             block_found = False
             waiting_for_response = False
-            manager.generate_log('Cluster mining initiated')
+            manager.generate_log('Starting cluster mining')
             return 'Cluster mining initiated!', 200
         return 'Error: No nodes in cluster', 400
         manager.generate_log('Error: No nodes in cluster')
@@ -551,10 +633,12 @@ def stop_cluster():
 
     cluster_running = False
     block_found = True
+    manager.generate_log('Stopping cluster mining')
     for node in manager.slave_nodes:
-        r = requests.get(f'http://{node}/stop')
-        if not r.status_code == requests.codes.ok:
-            return f'Failed to deactivate miner {node} in cluster', 400
+        requests.get(f'http://{node}/stop')
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
+        #if not r.status_code == requests.codes.ok:
+            #return f'Failed to deactivate miner {node} in cluster', 400
     return 'Cluster mining deactivated!', 200
 
 
@@ -578,7 +662,9 @@ def generate_transactions():
 @app.route('/transactions/update', methods=['POST'])
 def update_transactions():
     new_transactions = request.get_json()
+    #stop_cluster()
     manager.current_transactions = new_transactions
+    #start_cluster()
     return 'Transactions updated!', 200
 
 
@@ -590,6 +676,9 @@ def get_address():
 # Initialization --------------------
 # Activate syncing of manager node list
 sync_nodes()
+if len(manager.nodes) > 1:
+    manager.chain = requests.get('http://127.0.0.1:5000/chain')['chain']
+    requests.get(url='http://127.0.0.1:4000/report_traffic')
 manager.generate_log('Manager created')
 
 # Get longest blockchain
@@ -618,7 +707,7 @@ def main():
     # Prevent address collisions when using the local network, change this in bigger networks
 
     # Start Flask app
-    app.run(host='127.0.0.1', port=port, threaded=False)
+    app.run(host='127.0.0.1', port=port, threaded=True)
 
 if __name__ == '__main__':
     main()
