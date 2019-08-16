@@ -182,6 +182,13 @@ class Blockchain:
             'node_address': node_address,
             'current_transactions': self.current_transactions
         }
+
+        for node in self.nodes:
+            if node != node_address:
+                r = requests.post(url=f'http://{node}/validate', json=block)
+                if r.status_code != 200:
+                    return False
+
         r = requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block_old', json=payload)
         if r.status_code == 200:
             # Pause mining to update transaction list
@@ -352,22 +359,24 @@ class Mine(threading.Thread):
         self.task_id = task_id
 
     def run(self):
-        while is_mining:
-            mine_loop_done = False
+        while True:
+            while is_mining:
+                #mine_loop_done = False
 
-            # Compose list of transactions of block
-            block_transactions = blockchain.compose_block_transactions()
-            if block_transactions:
-                # We run the proof of work algorithm to get the next proof...
-                last_block = blockchain.last_block()
-                proof = blockchain.proof_of_work(last_block)
+                # Compose list of transactions of block
+                block_transactions = blockchain.compose_block_transactions()
+                if block_transactions:
+                    # We run the proof of work algorithm to get the next proof...
+                    last_block = blockchain.last_block()
+                    proof = blockchain.proof_of_work(last_block)
 
-                # Forge the new Block by adding it to the chain
-                previous_hash = blockchain.hash(last_block)
-                blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
-            sleep(0.1)
-        
-        mine_loop_done = True
+                    # Forge the new Block by adding it to the chain
+                    previous_hash = blockchain.hash(last_block)
+                    blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
+                sleep(0.1)
+
+            #mine_loop_done = True
+            sleep(0.2)
 
 
 class Sync(threading.Thread):
@@ -383,25 +392,30 @@ class Sync(threading.Thread):
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    while not mine_loop_done:
-        sleep(0.1)
+    # while not mine_loop_done:
+    #     sleep(0.1)
     global is_mining
-    is_mining = True
-    async_task = Mine(task_id=1)
-    try:
-        with app.test_request_context():
-            async_task.start()
-        return 'Started mining process', 200
-    except RuntimeError:
+    if is_mining:
         return 'Node is already mining', 400
+    else:
+        is_mining = True
+        return 'Started mining process', 200
+
+    # async_task = Mine(task_id=1)
+    # try:
+    #     with app.test_request_context():
+    #         async_task.start()
+    #     return 'Started mining process', 200
+    # except RuntimeError:
+    #     return 'Node is already mining', 400
 
 
 @app.route('/mine/stop', methods=['GET'])
 def stop_mining():
-    while not mine_loop_done:
-        sleep(0.1)
     global is_mining
     is_mining = False
+    # while not mine_loop_done:
+    #     sleep(0.1)
     return 'Mining process stopped', 200
 
 
@@ -537,12 +551,39 @@ def update_transactions():
     return 'Transactions updated!', 200
 
 
+@app.route('/validate', methods=['POST'])
+def validate_block():
+    block = request.get_json()
+    if int(block['index']) == int(blockchain.last_block()['index'])+1:
+        #manager.generate_log('If 1 korrekt block index')
+        last_block_hash = blockchain.hash(blockchain.last_block())
+        if block['previous_hash'] != last_block_hash:
+            #manager.generate_log('If 1.1 invalid block hash')
+            return 'Invalid block hash', 400
+        if not blockchain.valid_proof(blockchain.last_block()['proof'], block['proof'], last_block_hash):
+            #manager.generate_log('If 1.2 invalid block proof')
+            return 'Invalid block proof', 400
+        else:
+            #manager.generate_log('If 1.3 Correct block')
+            return 'Block correct, add to chain', 200
+    else:
+        #manager.generate_log('Else 2 invalid block index')
+        return "Invalid index", 400
+
+
 # Initialization --------------------
 # Activate syncing of node lists
 sync_nodes()
 
 # Activate mining
-mine()
+#mine()
+async_task = Mine(task_id=1)
+try:
+    with app.test_request_context():
+        async_task.start()
+except:
+    raise Exception
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
