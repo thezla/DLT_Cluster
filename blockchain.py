@@ -354,7 +354,6 @@ class Mine(threading.Thread):
     def run(self):
         while is_mining:
             mine_loop_done = False
-            #TODO: Sync transactions across network
 
             # Compose list of transactions of block
             block_transactions = blockchain.compose_block_transactions()
@@ -367,6 +366,7 @@ class Mine(threading.Thread):
                 previous_hash = blockchain.hash(last_block)
                 blockchain.new_block(proof, previous_hash, block_transactions, node_identifier)
             sleep(0.1)
+        
         mine_loop_done = True
 
 
@@ -383,10 +383,10 @@ class Sync(threading.Thread):
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    global is_mining
-    is_mining = True
     while not mine_loop_done:
         sleep(0.1)
+    global is_mining
+    is_mining = True
     async_task = Mine(task_id=1)
     try:
         with app.test_request_context():
@@ -398,10 +398,10 @@ def mine():
 
 @app.route('/mine/stop', methods=['GET'])
 def stop_mining():
-    global is_mining
-    is_mining = False
     while not mine_loop_done:
         sleep(0.1)
+    global is_mining
+    is_mining = False
     return 'Mining process stopped', 200
 
 
