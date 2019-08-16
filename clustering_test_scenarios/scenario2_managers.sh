@@ -15,12 +15,12 @@ function ctrl_c() {
 trap ctrl_c INT
 
 pkill -9 python
-pipenv run python logger.py &
-pipenv run python debugger.py &
-pipenv run python chain.py &
+pipenv run python ../logger.py &
+pipenv run python ../debugger.py &
+pipenv run python ../chain.py &
 sleep 2
-pipenv run python manager.py -p 5000 &
+pipenv run python ../manager.py -p 5000 &
 sleep 1
-pipenv run python manager.py -p 5100 &
+pipenv run python ../manager.py -p 5100 &
 sleep 1
-pipenv run python manager.py -p 5200
+pipenv run python ../manager.py -p 5200

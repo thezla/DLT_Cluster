@@ -166,6 +166,7 @@ class Blockchain:
                     block_size += transaction_size
         return block_transactions
 
+
     def add_block(self, block):
         """
         Add a new Block to the Blockchain

@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 timestamp = datetime.now()
 timestamp = timestamp.strftime('%Y-%m-%d_%H_%M_%S')
-current_file = f'tmp/cluster_logs_{timestamp}.tsv'
+current_file = f'../tmp/cluster_logs_{timestamp}.tsv'
 
 with open(current_file, 'a+') as out_file:
     tsv_writer = csv.writer(out_file, delimiter='\t')

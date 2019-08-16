@@ -118,7 +118,6 @@ class Blockchain:
     def compose_block_transactions(self):
         # Max size of block in "kilobytes"
         max_size = 2000
-
         block_size = 0
         block_transactions = []
 
@@ -319,7 +318,7 @@ class Blockchain:
 
         guess = f'{last_proof}{proof}{last_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:4] == "0000"         # Hash made easy to simulate mining
+        return guess_hash[:5] == "00000"         # Hash made easy to simulate mining
     
     def sync_transactions(self, node):
         return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)

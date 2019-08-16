@@ -11,8 +11,8 @@ history_old = []
 
 timestamp = datetime.now()
 timestamp = timestamp.strftime('%Y-%m-%d_%H_%M_%S')
-current_file = f'tmp/cluster_data_{timestamp}.tsv'
-current_file_old = f'tmp_old/cluster_data_{timestamp}.tsv'
+current_file = f'../tmp/cluster_data_{timestamp}.tsv'
+current_file_old = f'../tmp_old/cluster_data_{timestamp}.tsv'
 traffic = 0
 
 with open(current_file, 'a+') as out_file:
