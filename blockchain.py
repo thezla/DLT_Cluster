@@ -53,6 +53,7 @@ class Blockchain:
                 # Do not request node list from itself
                 if node != node_address:
                     response = requests.post(url=f'http://{node}/nodes/register', json=payload, headers=headers)
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
 
     def valid_chain(self, chain):
         """
@@ -98,6 +99,7 @@ class Blockchain:
         # Grab and verify the chains from all the nodes in our network
         for node in neighbours:
             response = requests.get(f'http://{node}/chain')
+            requests.get(url='http://127.0.0.1:4000/report_traffic')
 
             if response.status_code == 200:
                 length = response.json()['length']
@@ -182,32 +184,43 @@ class Blockchain:
             'current_transactions': self.current_transactions
         }
 
+        for tx in block_transactions:
+            if tx in self.current_transactions:
+                index = self.current_transactions.index(tx)
+                self.current_transactions.pop(index)
+
         for node in self.nodes:
             if node != node_address:
                 r = requests.post(url=f'http://{node}/validate', json=block)
-                if r.status_code != 200:
-                    return False
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
+                if r.status_code == 200:
+                    requests.get(url=f'http://{node}/mine/stop')
+                    requests.get(url='http://127.0.0.1:4000/report_traffic')
+                    blockchain.sync_transactions(node)
+                else:
+                    # Restart nodes that were shut off if validation fails
+                    for n in self.nodes:
+                        requests.get(url=f'http://{n}/mine')
+                        requests.get(url='http://127.0.0.1:4000/report_traffic')
+                        return False
 
+        stop_mining()
         r = requests.post(url=f'{self.BLOCKCHAIN_ADDRESS}/append_block_old', json=payload)
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         if r.status_code == 200:
-            # Pause mining to update transaction list
-            stop_mining()
-            for node in self.nodes:
-                requests.get(url=f'http://{node}/mine/stop')
-
             # DEBUGGING
-            self.generate_log(f'Current transactions: {len(self.current_transactions)}')
-            tx = block_transactions[0]
-            if tx in self.current_transactions:
-                self.generate_log(f'Transaction found in current_transactions')
-            else:
-                self.generate_log(f'Rogue transaction found!')
+            #self.generate_log(f'Current transactions: {len(self.current_transactions)}')
+            # tx = block_transactions[0]
+            # if tx in self.current_transactions:
+            #     self.generate_log(f'Transaction found in current_transactions')
+            # else:
+            #     self.generate_log(f'Rogue transaction found!')
             # ----------
 
-            for tx in block_transactions:
-                if tx in self.current_transactions:
-                    index = self.current_transactions.index(tx)
-                    self.current_transactions.pop(index)
+            # for tx in block_transactions:
+            #     if tx in self.current_transactions:
+            #         index = self.current_transactions.index(tx)
+            #         self.current_transactions.pop(index)
             self.generate_log(f'Current transactions: {len(self.current_transactions)}')
 
             for node in self.nodes:
@@ -216,8 +229,12 @@ class Blockchain:
             mine()
             for node in self.nodes:
                 requests.get(url=f'http://{node}/mine')
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
             return True
         else:
+            for node in self.nodes:
+                requests.get(url=f'http://{node}/mine')
+                requests.get(url='http://127.0.0.1:4000/report_traffic')
             return False
 
 
@@ -264,8 +281,10 @@ class Blockchain:
     #@property
     def last_block(self):
         r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         while r.status_code != 200:
             r = requests.get(url=f'{self.BLOCKCHAIN_ADDRESS}/get_chain')
+            requests.get(url='http://127.0.0.1:4000/report_traffic')
             sleep(0.5)
         return r.json()['chain'][-1]
 
@@ -321,6 +340,7 @@ class Blockchain:
         return guess_hash[:5] == "00000"         # Hash made easy to simulate mining
     
     def sync_transactions(self, node):
+        requests.get(url='http://127.0.0.1:4000/report_traffic')
         return requests.post(url=f'http://{node}/transactions/update', json=self.current_transactions)
     
     def generate_log(self, event):

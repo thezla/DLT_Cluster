@@ -111,7 +111,7 @@ class Chain:
                 self.generate_log(f'Chain accepted block from {node_address}')
                 payload = {
                     'chain_height': len(self.chain),
-                    'transaction_pool_size': len(current_transactions)-len(block['transactions']),
+                    'transaction_pool_size': len(current_transactions),
                     'miner_id': block['node'],
                     'manager_id': node_id,
                     'time': str(datetime.now())

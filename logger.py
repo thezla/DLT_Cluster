@@ -42,7 +42,7 @@ def report_old():
     with open(current_file_old, 'a') as out_file:
         if data not in history_old:
             tsv_writer = csv.writer(out_file, delimiter='\t')
-            tsv_writer.writerow([data['chain_height'], data['transaction_pool_size'], data['miner_id'], data['time']])
+            tsv_writer.writerow([data['chain_height'], data['transaction_pool_size'], data['miner_id'], traffic, data['time']])
             history_old.append(data)
     return 'Data logged!', 200
 

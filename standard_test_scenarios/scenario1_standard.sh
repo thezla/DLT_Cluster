@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# 8 miner nodes
+
 function ctrl_c() {
     echo "Terminating processes..."
     pkill -9 python
